@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="vuldra-js-1.0-SNAPSHOT">
+    <output-path>$PROJECT_DIR$/build/libs</output-path>
+    <root id="archive" name="vuldra-js-1.0-SNAPSHOT.jar">
+      <element id="module-output" name="vuldra.jsMain" />
+    </root>
+  </artifact>
+</component>
