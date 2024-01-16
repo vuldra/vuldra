@@ -5,6 +5,7 @@ import cli.LOGIN_COMMAND
 import cli.Provider
 import com.aallam.openai.api.chat.*
 import com.aallam.openai.api.http.Timeout
+import com.aallam.openai.api.model.Model
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
@@ -49,9 +50,9 @@ class OpenaiApiClient {
         return completion.choices.first().message
     }
 
-    suspend fun testApiConnection() {
+    suspend fun listModels(): List<Model> {
         ensureOpenaiApiClientConfigured()
-        openaiClient!!.models()
+        return openaiClient!!.models()
     }
 
     private fun ensureOpenaiApiClientConfigured() {

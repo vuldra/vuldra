@@ -1,7 +1,7 @@
 package cli
 
-import cli.CliConfig.VULDRA_COMMAND
 import cli.CliConfig.SEMGREP
+import cli.CliConfig.VULDRA_COMMAND
 import com.github.ajalt.clikt.completion.completionOption
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -52,6 +52,8 @@ class LoginCommand : CliktCommand(
                 val vuldraConfig = readVuldraConfig() ?: VuldraConfig()
                 vuldraConfig.openaiApiKey = secret
                 writeVuldraConfig(vuldraConfig)
+//                val openaiApiClient = OpenaiApiClient()
+//                openaiApiClient.listModels()
             }
         }
     }

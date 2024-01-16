@@ -175,9 +175,7 @@ tasks.withType<Test> {
 
 tasks.register<Copy>("install") {
     group = "run"
-    description = "Build the native executable and install it"
-    val destDir = "/usr/local/bin"
-
+    description = "Build the native executable and copy it to the root of the project"
 
     dependsOn("runDebugExecutable$nativeTarget")
     val targetLowercase = nativeTarget.first().lowercaseChar() + nativeTarget.substring(1)
@@ -186,9 +184,11 @@ tasks.register<Copy>("install") {
         include("${rootProject.name}.kexe")
         rename { PROGRAM }
     }
-    into(destDir)
+    into(rootDir)
     doLast {
-        println("$ cp $folder/${rootProject.name}.kexe $destDir/$PROGRAM")
+        println("You can now test the compiled binary in the root of the project.")
+        println("If you want to install binary system-wide, run:")
+        println("$ sudo cp $folder/${rootProject.name}.kexe /usr/local/bin/$PROGRAM")
     }
 }
 
