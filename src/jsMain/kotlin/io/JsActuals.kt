@@ -1,6 +1,6 @@
 package io
 
-import path.path
+import NodeJS.get
 import child_process.ExecOptions
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
@@ -9,7 +9,7 @@ import okio.NodeJsFileSystem
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import kotlin.js.Promise.Companion.resolve
+import process
 
 
 actual val fileSystem: FileSystem = NodeJsFileSystem
@@ -50,6 +50,12 @@ actual suspend fun pwd(options: ExecuteCommandOptions): String {
         else -> executeCommandAndCaptureOutput(listOf("pwd"), options).trim()
     }
 }
+
+actual fun getEnvironmentVariable(name: String): String? =
+    process.env[name]
+
+actual fun localUserConfigDirectory(): String =
+    os.homedir()
 
 actual fun runTest(block: suspend () -> Unit): dynamic =
     GlobalScope.promise { block() }

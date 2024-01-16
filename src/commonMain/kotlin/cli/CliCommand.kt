@@ -1,6 +1,6 @@
 package cli
 
-import cli.CliConfig.COMMAND_NAME
+import cli.CliConfig.VULDRA_COMMAND
 import cli.CliConfig.FIND
 import cli.CliConfig.SEMGREP
 import com.github.ajalt.clikt.completion.completionOption
@@ -16,8 +16,6 @@ import com.github.ajalt.mordant.terminal.Terminal
 /**
  * CliKt provides Kotlin Multiplatform command line interface parsing for Kotlin
  * https://ajalt.github.io/clikt/
- *
- * CUSTOMIZE_ME: define your own help messages and arguments here
  */
 class CliCommand : CliktCommand(
     help = """
@@ -27,11 +25,11 @@ class CliCommand : CliktCommand(
         By default all files of the current directory are scanned recursively, unless arguments are provided to specify targets.
         
         Examples:
-            $COMMAND_NAME vulnerable1.java
-            $COMMAND_NAME vulnerable1.java vulnerable2.java
-            $COMMAND_NAME src/main/java
+            $VULDRA_COMMAND vulnerable1.java
+            $VULDRA_COMMAND vulnerable1.java vulnerable2.java
+            $VULDRA_COMMAND src/main/java
     """.trimIndent(),
-    name = COMMAND_NAME
+    name = VULDRA_COMMAND
 ) {
     init {
         completionOption()

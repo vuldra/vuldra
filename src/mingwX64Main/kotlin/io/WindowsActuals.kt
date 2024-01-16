@@ -7,6 +7,7 @@ import platform.posix._pclose
 import platform.posix._popen
 import platform.posix.chdir
 import platform.posix.fgets
+import platform.posix.getenv
 
 actual suspend fun findExecutable(executable: String): String =
     executable
@@ -50,6 +51,12 @@ actual suspend fun pwd(options: ExecuteCommandOptions): String {
         else -> executeCommandAndCaptureOutput(listOf("pwd"), options).trim()
     }
 }
+
+actual fun getEnvironmentVariable(name: String): String? =
+    getenv(name)?.toKString()
+
+actual fun localUserConfigDirectory(): String =
+    getEnvironmentVariable("%LOCALAPPDATA%") ?: error("%LOCALAPPDATA% environment variable not defined")
 
 actual fun runTest(block: suspend () -> Unit) =
     runBlocking { block() }

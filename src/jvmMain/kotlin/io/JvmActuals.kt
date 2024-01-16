@@ -37,6 +37,12 @@ actual suspend fun pwd(options: ExecuteCommandOptions): String {
     return File(".").absolutePath
 }
 
+actual fun getEnvironmentVariable(name: String): String? =
+    System.getenv(name)
+
+actual fun localUserConfigDirectory(): String =
+    getEnvironmentVariable("user.home") ?: error("user.home environment variable not defined")
+
 actual val compilationTarget = CompilationTarget.JVM
 actual val platform: Platform by lazy {
     val osName = System.getProperty("os.name").lowercase()

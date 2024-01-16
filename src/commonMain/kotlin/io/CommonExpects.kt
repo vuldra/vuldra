@@ -23,7 +23,7 @@ fun writeAllText(filePath: String, text: String): Unit =
         writeUtf8(text)
     }
 
-inline fun writeDataToJsonFile(filePath: String, data: Serializable) =
+inline fun writeDataToJsonFile(filePath: String, data: Any) =
     writeAllText(filePath, Json.encodeToString(data))
 
 fun writeAllLines(
@@ -47,6 +47,10 @@ data class ExecuteCommandOptions(
 )
 
 expect suspend fun pwd(options: ExecuteCommandOptions): String
+
+expect fun getEnvironmentVariable(name: String): String?
+
+expect fun localUserConfigDirectory(): String
 
 // call $ which $executable on the JVM
 expect suspend fun findExecutable(executable: String): String
