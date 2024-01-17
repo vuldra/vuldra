@@ -17,7 +17,7 @@ actual suspend fun findExecutable(executable: String): String =
  * https://stackoverflow.com/questions/57123836/kotlin-native-execute-command-and-get-the-output
  */
 @OptIn(ExperimentalForeignApi::class)
-actual suspend fun executeCommandAndCaptureOutput(
+actual suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>, // "find . -name .git"
     options: ExecuteCommandOptions
 ): String {
@@ -46,7 +46,7 @@ actual suspend fun executeCommandAndCaptureOutput(
 }
 
 actual suspend fun pwd(options: ExecuteCommandOptions): String {
-    return executeCommandAndCaptureOutput(listOf("pwd"), options).trim()
+    return executeExternalCommandAndCaptureOutput(listOf("pwd"), options).trim()
 }
 
 actual fun getEnvironmentVariable(name: String): String? =

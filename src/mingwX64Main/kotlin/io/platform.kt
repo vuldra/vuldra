@@ -6,7 +6,7 @@ actual val compilationTarget = CompilationTarget.WINDOWS
 actual val platform: Platform by lazy {
     val uname = runBlocking {
         try {
-            executeCommandAndCaptureOutput(
+            executeExternalCommandAndCaptureOutput(
                 listOf("where", "uname"),
                 ExecuteCommandOptions(
                     directory = ".",
@@ -15,7 +15,7 @@ actual val platform: Platform by lazy {
                     trim = true,
                 ),
             )
-            executeCommandAndCaptureOutput(
+            executeExternalCommandAndCaptureOutput(
                 listOf("uname", "-a"),
                 ExecuteCommandOptions(
                     directory = ".",

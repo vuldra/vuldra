@@ -1,4 +1,5 @@
 # Vuldra
+A command line interface for scanning source code for vulnerabilities.
 
 ## Development
 
@@ -10,3 +11,6 @@
 - [Clikt](https://ajalt.github.io/clikt/) is used for the CLI tool 
 - [OpenAI API](https://beta.openai.com/docs/api-reference/introduction) is used for the text generation
 - [openai-kotlin](https://github.com/aallam/openai-kotlin) is used as a wrapper for the OpenAI API
+
+### Acknowledgements
+- [kotlin-cli-starter](https://github.com/jmfayard/kotlin-cli-starter) was used as a great template for this project

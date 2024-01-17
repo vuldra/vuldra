@@ -4,7 +4,7 @@ import kotlin.native.concurrent.ThreadLocal
 
 @ThreadLocal
 object CliConfig {
-    val VULDRA_COMMAND = "vuldra"
+    const val VULDRA_COMMAND = "vuldra"
 
     /** The Java API ProcessBuilder, used in executeCommandAndCaptureOutput()
      * needs an absolute path to the executable,

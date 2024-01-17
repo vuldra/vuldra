@@ -15,7 +15,7 @@ actual suspend fun findExecutable(executable: String): String =
 /**
  * https://stackoverflow.com/questions/57123836/kotlin-native-execute-command-and-get-the-output
  */
-actual suspend fun executeCommandAndCaptureOutput(
+actual suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>,
     options: ExecuteCommandOptions
 ): String {
@@ -47,8 +47,8 @@ actual suspend fun executeCommandAndCaptureOutput(
 
 actual suspend fun pwd(options: ExecuteCommandOptions): String {
     return when (platform) {
-        Platform.WINDOWS -> executeCommandAndCaptureOutput(listOf("echo", "%cd%"), options).trim('"', ' ')
-        else -> executeCommandAndCaptureOutput(listOf("pwd"), options).trim()
+        Platform.WINDOWS -> executeExternalCommandAndCaptureOutput(listOf("echo", "%cd%"), options).trim('"', ' ')
+        else -> executeExternalCommandAndCaptureOutput(listOf("pwd"), options).trim()
     }
 }
 

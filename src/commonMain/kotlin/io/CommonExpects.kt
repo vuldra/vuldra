@@ -29,7 +29,7 @@ fun writeAllLines(
 fun fileIsReadable(filePath: String): Boolean =
     fileSystem.exists(filePath.toPath())
 
-expect suspend fun executeCommandAndCaptureOutput(
+expect suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>,
     options: ExecuteCommandOptions
 ): String

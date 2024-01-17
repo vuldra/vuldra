@@ -6,7 +6,7 @@ import java.io.File
 
 actual val fileSystem: FileSystem = FileSystem.SYSTEM
 
-actual suspend fun executeCommandAndCaptureOutput(
+actual suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>,
     options: ExecuteCommandOptions,
 ): String {
@@ -23,9 +23,9 @@ actual suspend fun executeCommandAndCaptureOutput(
 }
 
 actual suspend fun findExecutable(executable: String): String = when (platform) {
-    Platform.WINDOWS -> executeCommandAndCaptureOutput(listOf("where", executable),
+    Platform.WINDOWS -> executeExternalCommandAndCaptureOutput(listOf("where", executable),
         ExecuteCommandOptions(".", true, false, true))
-    else -> executeCommandAndCaptureOutput(listOf("which", executable),
+    else -> executeExternalCommandAndCaptureOutput(listOf("which", executable),
         ExecuteCommandOptions(".", true, false, true))
 //    else -> executable
 }
@@ -51,7 +51,7 @@ actual val platform: Platform by lazy {
         osName.startsWith("windows") -> {
             val uname = runBlocking {
                 try {
-                    executeCommandAndCaptureOutput(
+                    executeExternalCommandAndCaptureOutput(
                         listOf("where", "uname"),
                         ExecuteCommandOptions(
                             directory = ".",
@@ -60,7 +60,7 @@ actual val platform: Platform by lazy {
                             trim = true,
                         ),
                     )
-                    executeCommandAndCaptureOutput(
+                    executeExternalCommandAndCaptureOutput(
                         listOf("uname", "-a"),
                         ExecuteCommandOptions(
                             directory = ".",

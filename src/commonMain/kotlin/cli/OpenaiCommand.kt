@@ -1,6 +1,5 @@
 package cli
 
-import com.github.ajalt.clikt.completion.completionOption
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.options.flag
@@ -23,7 +22,6 @@ class OpenaiCommand : CliktCommand(
     name = OPENAI_COMMAND
 ) {
     init {
-        completionOption()
         subcommands(LoginCommand())
     }
 
@@ -41,9 +39,6 @@ class LoginCommand : CliktCommand(
     """.trimIndent(),
     name = LOGIN_COMMAND
 ) {
-    init {
-        completionOption()
-    }
     private val verbose by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
     private val apiKey: String by option(help = "Enter your OpenAI API key").prompt(
         hideInput = true
