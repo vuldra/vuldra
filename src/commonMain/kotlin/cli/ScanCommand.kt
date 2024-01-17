@@ -11,10 +11,9 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.rendering.TextColors
-import io.ExecuteCommandOptions
-import io.executeExternalCommandAndCaptureOutput
+import io.*
 import io.github.detekt.sarif4k.SarifSerializer
-import io.runBlocking
+import openai.OpenaiApiClient
 import sarif.MinimizedSarifResult
 
 const val SCAN_COMMAND = "scan"
@@ -39,7 +38,7 @@ class ScanCommand : CliktCommand(
 
     private val externalCommandOptions =
         ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
-
+    private val openaiApiClient = OpenaiApiClient(verbose = verbose)
 
     override fun run() {
         val targetFiles: List<String>
@@ -78,6 +77,15 @@ class ScanCommand : CliktCommand(
             val minimizedSarifResult = MinimizedSarifResult(SarifSerializer.fromJson(semgrepSarifResponse))
             if (verbose) echo(minimizedSarifResult)
         }
+        val sourceCode: String
+        try {
+            sourceCode = readAllText(targetFile)
+        } catch (e: Exception) {
+            echo(TextColors.red("Failed to read file $targetFile"))
+            return
+        }
+        val sourceCodeMessage = openaiApiClient.determineSourceCodeLanguage(sourceCode)
+        if (verbose) echo(sourceCodeMessage.content)
     }
 
     private fun semgrepScanCommand(targetFile: String): List<String> =

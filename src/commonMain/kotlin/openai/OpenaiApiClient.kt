@@ -39,14 +39,37 @@ class OpenaiApiClient(
             messages = listOf(
                 ChatMessage(
                     role = ChatRole.System,
-                    content = "You can determine the programming language of source code! You always output JSON in a concise manner."
+                    content = """
+                        You always determine the most likely programming language for provided source code in less than 10 words.
+                        
+                        Examples:
+                        
+                        int n = 10;
+                        int[] array = new int[n];
+                        array[0] = 5;
+                        
+                        Source code is likely Java.
+                        
+                        let user = database.find(email, pwd);
+                        console.log("Hello " + user.name);
+                        
+                        Source code is likely JavaScript.
+                        
+                        def sayHello():
+                            print "Hello!"
+                        
+                        Source code is likely Python.
+                    """.trimIndent()
                 ),
                 ChatMessage(
                     role = ChatRole.User,
-                    content = "Determine the programming language of this source code:\n$preparedSourceCode"
+                    content = """
+                        Determine the programming language of this source code:
+                        
+                        $preparedSourceCode
+                    """.trimIndent()
                 )
             ),
-            responseFormat = ChatResponseFormat.JsonObject
         )
         val completion: ChatCompletion = openaiClient!!.chatCompletion(chatCompletionRequest)
         // TODO deal with finish_reason before decoding from JSON
