@@ -57,7 +57,7 @@ actual fun getEnvironmentVariable(name: String): String? =
 actual fun localUserConfigDirectory(): String =
     os.homedir()
 
-actual fun runTest(block: suspend () -> Unit): dynamic =
+actual fun runBlocking(block: suspend () -> Unit): dynamic =
     GlobalScope.promise { block() }
 
 actual val compilationTarget = CompilationTarget.NODEJS

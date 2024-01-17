@@ -2,11 +2,13 @@ package openai
 
 import cli.CliConfig
 import cli.LOGIN_COMMAND
-import cli.Provider
+import cli.OPENAI_COMMAND
 import com.aallam.openai.api.chat.*
 import com.aallam.openai.api.http.Timeout
+import com.aallam.openai.api.logging.LogLevel
 import com.aallam.openai.api.model.Model
 import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
 import io.getEnvironmentVariable
@@ -18,13 +20,14 @@ const val MAX_OUTPUT_TOKENS = 4096
 const val APPROXIMATE_CHARACTERS_PER_TOKEN = 4
 const val OPENAI_API_KEY_ENV_NAME = "OPENAI_API_KEY"
 
-class OpenaiApiClient {
-    var openaiApiKey = readOpenApiKey()
-    var openaiClient: OpenAI? = null
+class OpenaiApiClient(
+    private var openaiApiKey: String? = null,
+    private val verbose: Boolean = false,
+) {
+    private var openaiClient: OpenAI? = null
 
     suspend fun determineSourceCodeLanguage(sourceCode: String): ChatMessage {
         ensureOpenaiApiClientConfigured()
-
         var preparedSourceCode = sourceCode
         val maxInputTokens = CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 - MAX_OUTPUT_TOKENS
         if (sourceCode.length / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
@@ -59,15 +62,16 @@ class OpenaiApiClient {
         if (openaiClient == null) {
             if (openaiApiKey == null) {
                 openaiApiKey = readOpenApiKey()
-                    ?: error("OpenAI API key is not set. Please first set it using `${CliConfig.VULDRA_COMMAND} $LOGIN_COMMAND ${Provider.OPENAI}` or by exposing the environment variable $OPENAI_API_KEY_ENV_NAME.")
+                    ?: error("OpenAI API key not found! \nPlease first set it using `${CliConfig.VULDRA_COMMAND} $OPENAI_COMMAND $LOGIN_COMMAND` or by exposing the environment variable $OPENAI_API_KEY_ENV_NAME.")
             }
             openaiClient = OpenAI(
                 token = openaiApiKey!!,
-                timeout = Timeout(30.seconds)
+                timeout = Timeout(30.seconds),
+                logging = LoggingConfig(logLevel = if (verbose) LogLevel.All else LogLevel.Info),
             )
         }
     }
 
     private fun readOpenApiKey(): String? =
-        readVuldraConfig()?.openaiApiKey ?: getEnvironmentVariable(OPENAI_API_KEY_ENV_NAME)
+        readVuldraConfig(verbose)?.openaiApiKey ?: getEnvironmentVariable(OPENAI_API_KEY_ENV_NAME)
 }

@@ -1,8 +1,6 @@
 package io
 
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
 import okio.FileSystem
 import okio.Path.Companion.toPath
 
@@ -22,9 +20,6 @@ fun writeAllText(filePath: String, text: String): Unit =
     fileSystem.write(filePath.toPath()) {
         writeUtf8(text)
     }
-
-inline fun writeDataToJsonFile(filePath: String, data: Any) =
-    writeAllText(filePath, Json.encodeToString(data))
 
 fun writeAllLines(
     filePath: String,
@@ -57,4 +52,4 @@ expect suspend fun findExecutable(executable: String): String
 
 // runBlocking doens't exist on JavaScript therefore in common multiplatform code
 // https://github.com/jmfayard/kotlin-cli-starter/issues/9
-expect fun runTest(block: suspend () -> Unit): Unit
+expect fun runBlocking(block: suspend () -> Unit): Unit

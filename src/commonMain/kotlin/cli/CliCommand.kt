@@ -1,17 +1,16 @@
 package cli
 
-import cli.CliConfig.VULDRA_COMMAND
 import cli.CliConfig.FIND
 import cli.CliConfig.SEMGREP
+import cli.CliConfig.VULDRA_COMMAND
 import com.github.ajalt.clikt.completion.completionOption
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import com.github.ajalt.mordant.rendering.TextColors.*
-import com.github.ajalt.mordant.terminal.Terminal
 
 /**
  * CliKt provides Kotlin Multiplatform command line interface parsing for Kotlin
@@ -33,21 +32,14 @@ class CliCommand : CliktCommand(
 ) {
     init {
         completionOption()
+        subcommands(OpenaiCommand())
     }
-    val help: Boolean by option("-h", "--help", help = "Display this help screen").flag()
-    val verbose by option("-v", "--verbose", help = "verbose").flag(defaultForHelp = "disabled")
-    val colors by option("--colors", help = "print using colors").flag()
+    val verbose by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
     val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
     val pattern: String? by option("--pattern", "-p", help = "Specify a shell pattern to match filenames")
     val targets: List<String> by argument().multiple()
 
-    override fun run() {
-        if (verbose) println(this)
-        if (colors) {
-            val t = Terminal()
-            t.println("${red("red")} ${white("white")} and ${blue("blue")}")
-        }
-    }
+    override fun run() {}
 
     fun semgrepScanCommand(targets: List<String>): List<String> {
         val args = mutableListOf<String>()

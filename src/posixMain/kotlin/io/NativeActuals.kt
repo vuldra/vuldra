@@ -55,5 +55,5 @@ actual fun getEnvironmentVariable(name: String): String? =
 actual fun localUserConfigDirectory(): String =
     getEnvironmentVariable("HOME") ?: error("HOME environment variable not defined")
 
-actual fun runTest(block: suspend () -> Unit) =
+actual fun runBlocking(block: suspend () -> Unit) =
     runBlocking { block() }

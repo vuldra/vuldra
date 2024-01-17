@@ -30,7 +30,7 @@ actual suspend fun findExecutable(executable: String): String = when (platform) 
 //    else -> executable
 }
 
-actual fun runTest(block: suspend () -> Unit): Unit =
+actual fun runBlocking(block: suspend () -> Unit): Unit =
     runBlocking { block() }
 
 actual suspend fun pwd(options: ExecuteCommandOptions): String {

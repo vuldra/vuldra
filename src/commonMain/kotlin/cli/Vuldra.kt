@@ -3,6 +3,7 @@ package cli
 import cli.CliConfig.FIND
 import cli.CliConfig.GIT
 import cli.CliConfig.SEMGREP
+import com.github.ajalt.clikt.core.subcommands
 import io.ExecuteCommandOptions
 import io.findExecutable
 import io.pwd
@@ -24,11 +25,6 @@ suspend fun runVuldra(args: Array<String>) {
     val currentDirectory = pwd(options)
 
     command.main(args)
-
-    if (command.help) {
-        println(command.getFormattedHelp())
-        return
-    }
 
     // TODO perform scan
 }
