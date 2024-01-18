@@ -39,7 +39,7 @@ data class MinimizedRun(
 data class MinimizedRunResult(
     val regions: List<MinimizedRegion>?,
     val message: String?,
-    val ruleId: String?,
+    val ruleId: String? = null,
 )
 
 
@@ -47,7 +47,7 @@ data class MinimizedRunResult(
 data class MinimizedRegion(
     val startLine: Long?,
     val endLine: Long?,
-    val snippet: String?,
+    val snippet: String? = null,
 ) {
     constructor(region: Region) : this(
         startLine = region.startLine,

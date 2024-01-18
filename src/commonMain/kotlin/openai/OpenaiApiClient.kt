@@ -4,6 +4,7 @@ import cli.CliConfig
 import cli.LOGIN_COMMAND
 import cli.OPENAI_COMMAND
 import com.aallam.openai.api.chat.*
+import com.aallam.openai.api.core.FinishReason
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.logging.LogLevel
 import com.aallam.openai.api.model.Model
@@ -12,8 +13,11 @@ import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
 import io.getEnvironmentVariable
+import unstrictJson
 import kotlin.time.Duration.Companion.seconds
 
+const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
+const val GPT4_1106_PREVIEW = "gpt4-1106-preview"
 const val CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 = 16385
 const val CONTEXT_WINDOW_TOKENS_GPT4_1106_PREVIEW = 128000
 const val MAX_OUTPUT_TOKENS = 4096
@@ -26,54 +30,94 @@ class OpenaiApiClient(
 ) {
     private var openaiClient: OpenAI? = null
 
-    suspend fun determineSourceCodeLanguage(sourceCode: String): ChatMessage {
+    suspend fun determineSourceCodeLanguage(targetFile: String, sourceCode: String): String? {
         ensureOpenaiApiClientConfigured()
-        var preparedSourceCode = sourceCode
-        val maxInputTokens = CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 - MAX_OUTPUT_TOKENS
+        var sourceCodeSnippet = sourceCode
+        val maxInputTokens = 1000 // should be enough tokens to determine language
+        if (maxInputTokens > CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 - MAX_OUTPUT_TOKENS) {
+            error("MaxInputTokens $maxInputTokens to large for context window of model $GPT3_5_TURBO_1106")
+        }
         if (sourceCode.length / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
-            preparedSourceCode = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
+            sourceCodeSnippet = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
         }
 
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId("gpt-3.5-turbo-1106"),
+            model = ModelId(GPT3_5_TURBO_1106),
             messages = listOf(
                 ChatMessage(
                     role = ChatRole.System,
-                    content = """
-                        You always determine the most likely programming language for provided source code in less than 10 words.
-                        
-                        Examples:
-                        
-                        int n = 10;
-                        int[] array = new int[n];
-                        array[0] = 5;
-                        
-                        Source code is likely Java.
-                        
-                        let user = database.find(email, pwd);
-                        console.log("Hello " + user.name);
-                        
-                        Source code is likely JavaScript.
-                        
-                        def sayHello():
-                            print "Hello!"
-                        
-                        Source code is likely Python.
-                    """.trimIndent()
+                    content = determineSourceCodeLanguagePrompt
                 ),
                 ChatMessage(
                     role = ChatRole.User,
-                    content = """
-                        Determine the programming language of this source code:
-                        
-                        $preparedSourceCode
-                    """.trimIndent()
+                    content = "$targetFile\n\n$sourceCodeSnippet"
                 )
             ),
         )
         val completion: ChatCompletion = openaiClient!!.chatCompletion(chatCompletionRequest)
         // TODO deal with finish_reason before decoding from JSON
+        return completion.choices.first().message.content
+    }
+
+    suspend fun determineCommonVulnerabilities(programmingLanguage: String): ChatMessage {
+        ensureOpenaiApiClientConfigured()
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(GPT4_1106_PREVIEW),
+            messages = listOf(
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = determineCommonVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = programmingLanguage
+                )
+            ),
+        )
+        val completion: ChatCompletion = openaiClient!!.chatCompletion(chatCompletionRequest)
         return completion.choices.first().message
+    }
+
+    suspend fun determineSourceCodeVulnerabilities(
+        targetFile: String,
+        sourceCode: String,
+        programmingLanguage: String,
+        commonVulnerabilitiesMessage: ChatMessage,
+        sastResult: String
+    ): SourceCodeVulnerabilities {
+        ensureOpenaiApiClientConfigured()
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(GPT4_1106_PREVIEW),
+            messages = listOf(
+                ChatMessage(
+                    role = ChatRole.Assistant,
+                    content = programmingLanguage
+                ),
+                commonVulnerabilitiesMessage,
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = sastResult
+                ),
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = determineSourceCodeVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = "$targetFile\n\n$sourceCode"
+                )
+            ),
+            responseFormat = ChatResponseFormat.JsonObject,
+        )
+        val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
+        if (chatChoice.finishReason == FinishReason.Length) {
+            error("Input tokens plus JSON output exceed context window of model $GPT4_1106_PREVIEW")
+        }
+        try {
+            return unstrictJson.decodeFromString(chatChoice.message.content!!)
+        } catch (e: Exception) {
+            error("Failed to parse JSON output from OpenAI API: ${e.message}")
+        }
     }
 
     suspend fun listModels(): List<Model> {

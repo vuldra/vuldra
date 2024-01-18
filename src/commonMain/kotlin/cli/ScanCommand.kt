@@ -3,6 +3,7 @@ package cli
 import cli.CliConfig.FIND
 import cli.CliConfig.SEMGREP
 import cli.CliConfig.VULDRA_COMMAND
+import com.aallam.openai.api.chat.ChatMessage
 import com.github.ajalt.clikt.completion.CompletionCandidates
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -11,10 +12,18 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.rendering.TextColors
-import io.*
-import io.github.detekt.sarif4k.SarifSerializer
+import io.ExecuteCommandOptions
+import io.executeExternalCommandAndCaptureOutput
+import io.github.detekt.sarif4k.SarifSchema210
+import io.readAllText
+import io.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.serialization.encodeToString
+import okio.Path.Companion.toPath
 import openai.OpenaiApiClient
+import openai.SourceCodeVulnerabilities
 import sarif.MinimizedSarifResult
+import unstrictJson
 
 const val SCAN_COMMAND = "scan"
 
@@ -38,7 +47,6 @@ class ScanCommand : CliktCommand(
 
     private val externalCommandOptions =
         ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
-    private val openaiApiClient = OpenaiApiClient(verbose = verbose)
 
     override fun run() {
         val targetFiles: List<String>
@@ -48,12 +56,21 @@ class ScanCommand : CliktCommand(
             echo(TextColors.red("Failed to identify files for scanning: ${e.message}"))
             return
         }
-        try {
-            runBlocking {
-                targetFiles.forEach { scanTargetFile(it) }
+        val openaiApiClient = OpenaiApiClient(verbose = verbose)
+        runBlocking {
+            try {
+                openaiApiClient.listModels()
+            } catch (e: Exception) {
+                echo(TextColors.red("Failed to query OpenAI API: ${e.message}"))
+                return@runBlocking
             }
-        } catch (e: Exception) {
-            echo(TextColors.red("Failed to scan files: ${e.message}"))
+            targetFiles.forEach {
+                try {
+                    scanTargetFile(it, openaiApiClient)
+                } catch (e: Exception) {
+                    echo(TextColors.red("Failed to scan file $it: ${e.message}"))
+                }
+            }
         }
     }
 
@@ -70,22 +87,52 @@ class ScanCommand : CliktCommand(
         return targetFiles
     }
 
-    private suspend fun scanTargetFile(targetFile: String) {
+    private suspend fun scanTargetFile(
+        targetFile: String,
+        openaiApiClient: OpenaiApiClient
+    ): SourceCodeVulnerabilities {
+        return coroutineScope {
+            val minimizedSemgrepResultTask = async { scanTargetFileWithSemgrep(targetFile) }
+            val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
+            val minimizedSemgrepResult = minimizedSemgrepResultTask.await()
+            val targetFileContext = targetFileContextTask.await()
+
+            openaiApiClient.determineSourceCodeVulnerabilities(
+                targetFile,
+                targetFileContext.sourceCode,
+                targetFileContext.programmingLanguage,
+                targetFileContext.commonVulnerabilitiesMessage,
+                minimizedSemgrepResult
+            )
+        }
+    }
+
+    private suspend fun scanTargetFileWithSemgrep(targetFile: String): String {
         val semgrepSarifResponse =
             executeExternalCommandAndCaptureOutput(semgrepScanCommand(targetFile), externalCommandOptions)
-        if (semgrepSarifResponse.isNotBlank()) {
-            val minimizedSarifResult = MinimizedSarifResult(SarifSerializer.fromJson(semgrepSarifResponse))
-            if (verbose) echo(minimizedSarifResult)
+        if (semgrepSarifResponse.isBlank()) {
+            echo(TextColors.red("Failed to scan file $targetFile with semgrep."))
         }
-        val sourceCode: String
-        try {
-            sourceCode = readAllText(targetFile)
-        } catch (e: Exception) {
-            echo(TextColors.red("Failed to read file $targetFile"))
-            return
-        }
-        val sourceCodeMessage = openaiApiClient.determineSourceCodeLanguage(sourceCode)
-        if (verbose) echo(sourceCodeMessage.content)
+        val minimizedSarifResult =
+            MinimizedSarifResult(
+                unstrictJson.decodeFromString<SarifSchema210>(
+                    semgrepSarifResponse
+                )
+            )
+        val minimizedResult = unstrictJson.encodeToString(minimizedSarifResult)
+        if (verbose) echo("Semgrep Result:\n$minimizedResult")
+        return minimizedResult
+    }
+
+    private suspend fun gatherContextOfTargetFile(
+        targetFile: String,
+        openaiApiClient: OpenaiApiClient
+    ): TargetFilContext {
+        val sourceCode = readAllText(targetFile)
+        val programmingLanguage = openaiApiClient.determineSourceCodeLanguage(targetFile.toPath().name, sourceCode)
+            ?: error("Failed to determine programming language of $targetFile")
+        val commonVulnerabilitiesMessage = openaiApiClient.determineCommonVulnerabilities(programmingLanguage)
+        return TargetFilContext(sourceCode, programmingLanguage, commonVulnerabilitiesMessage)
     }
 
     private fun semgrepScanCommand(targetFile: String): List<String> =
@@ -111,3 +158,8 @@ class ScanCommand : CliktCommand(
     }
 }
 
+data class TargetFilContext(
+    val sourceCode: String,
+    val programmingLanguage: String,
+    val commonVulnerabilitiesMessage: ChatMessage
+)
