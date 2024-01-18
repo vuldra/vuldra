@@ -17,7 +17,8 @@ import io.executeExternalCommandAndCaptureOutput
 import io.github.detekt.sarif4k.SarifSchema210
 import io.readAllText
 import io.runBlocking
-import kotlinx.coroutines.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import okio.Path.Companion.toPath
 import openai.OpenaiApiClient

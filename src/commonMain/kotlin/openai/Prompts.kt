@@ -1,7 +1,7 @@
 package openai
 
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import sarif.MinimizedRegion
 import sarif.MinimizedRunResult
 
@@ -136,10 +136,10 @@ val determineSourceCodeVulnerabilitiesPrompt = """
     
     Step 3:
     Finalize discoveries concisely based on step 2. Discard any discoveries from the SAST tool or you, which are not convincing anymore.
-    Each discovery should take less than 50 words.
+    Each discovery should be described with less than 10 words.
     
     Step 4:
-    Determine a binary true/false answer if the provided source code is vulnerable depending on the existence of finalized discoveries.
+    Determine a true/false answer if the provided source code is vulnerable depending on the existence of finalized discoveries.
     
     Examples of JSON output you should produce:
     $exampleJsonOutput1

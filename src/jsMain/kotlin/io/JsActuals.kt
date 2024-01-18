@@ -6,10 +6,10 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
 import okio.FileSystem
 import okio.NodeJsFileSystem
+import process
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import process
 
 
 actual val fileSystem: FileSystem = NodeJsFileSystem

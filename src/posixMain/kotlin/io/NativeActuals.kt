@@ -4,11 +4,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo
 import kotlinx.cinterop.toKString
 import kotlinx.coroutines.runBlocking
-import platform.posix.chdir
-import platform.posix.fgets
-import platform.posix.pclose
-import platform.posix.popen
-import platform.posix.getenv
+import platform.posix.*
 
 actual suspend fun findExecutable(executable: String): String =
     executable

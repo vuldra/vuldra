@@ -14,10 +14,10 @@ import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
 import io.getEnvironmentVariable
 import unstrictJson
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.minutes
 
 const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
-const val GPT4_1106_PREVIEW = "gpt4-1106-preview"
+const val GPT4_1106_PREVIEW = "gpt-4-1106-preview"
 const val CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 = 16385
 const val CONTEXT_WINDOW_TOKENS_GPT4_1106_PREVIEW = 128000
 const val MAX_OUTPUT_TOKENS = 4096
@@ -62,7 +62,7 @@ class OpenaiApiClient(
     suspend fun determineCommonVulnerabilities(programmingLanguage: String): ChatMessage {
         ensureOpenaiApiClientConfigured()
         val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(GPT4_1106_PREVIEW),
+            model = ModelId(GPT3_5_TURBO_1106),
             messages = listOf(
                 ChatMessage(
                     role = ChatRole.System,
@@ -133,7 +133,7 @@ class OpenaiApiClient(
             }
             openaiClient = OpenAI(
                 token = openaiApiKey!!,
-                timeout = Timeout(30.seconds),
+                timeout = Timeout(2.minutes),
                 logging = LoggingConfig(logLevel = if (verbose) LogLevel.All else LogLevel.Info),
             )
         }
