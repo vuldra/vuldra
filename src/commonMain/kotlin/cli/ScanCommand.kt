@@ -20,6 +20,7 @@ import io.runBlocking
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 import openai.OpenaiApiClient
 import openai.SourceCodeVulnerabilities
@@ -49,6 +50,8 @@ class ScanCommand : CliktCommand(
     private val externalCommandOptions =
         ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
 
+    private val jsonPretty = Json { prettyPrint = true }
+
     override fun run() {
         val targetFiles: List<String>
         try {
@@ -58,6 +61,7 @@ class ScanCommand : CliktCommand(
             return
         }
         val openaiApiClient = OpenaiApiClient(verbose = verbose)
+        val sourceCodeVulnerabilities = mutableListOf<SourceCodeVulnerabilities>()
         runBlocking {
             try {
                 openaiApiClient.listModels()
@@ -67,12 +71,17 @@ class ScanCommand : CliktCommand(
             }
             targetFiles.forEach {
                 try {
-                    scanTargetFile(it, openaiApiClient)
+                    sourceCodeVulnerabilities.add(scanTargetFile(it, openaiApiClient))
                 } catch (e: Exception) {
                     echo(TextColors.red("Failed to scan file $it: ${e.message}"))
                 }
             }
         }
+        val vulnerabilityCount = sourceCodeVulnerabilities.sumOf { it.finalizedDiscoveries.size }
+        echo(TextColors.cyan(jsonPretty.encodeToString(sourceCodeVulnerabilities)))
+        val scanningSummaryMessage = "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files."
+        if (vulnerabilityCount == 0) echo(TextColors.green(scanningSummaryMessage))
+        else echo(TextColors.yellow(scanningSummaryMessage))
     }
 
     private fun identifyTargetFiles(): List<String> {
@@ -81,7 +90,7 @@ class ScanCommand : CliktCommand(
             targetFiles =
                 executeExternalCommandAndCaptureOutput(findCommand(targets), externalCommandOptions).split("\n")
         }
-        echo(TextColors.brightBlue("Identified ${targetFiles.size} files to scan."))
+        echo(TextColors.cyan("Identified ${targetFiles.size} files to scan."))
         if (verbose) {
             echo(targetFiles.joinToString("\n"))
         }

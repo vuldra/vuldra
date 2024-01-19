@@ -52,7 +52,7 @@ class LoginCommand : CliktCommand(
                 val models = openaiApiClient.listModels().map { model -> model.id.id }
                 echo()
                 echo("With your API key, you have access to following models:")
-                echo(TextColors.brightBlue(models.joinToString("\n")))
+                echo(TextColors.cyan(models.joinToString("\n")))
             }
             val vuldraConfig = readVuldraConfig(verbose) ?: VuldraConfig()
             vuldraConfig.openaiApiKey = apiKey
