@@ -126,20 +126,20 @@ class ScanCommand : CliktCommand(
             if (scanners.contains(Scanner.OPENAI)) {
                 val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
                 val targetFileContext = targetFileContextTask.await()
-
-                val sourceCodeVulnerabilities = SourceCodeVulnerabilities(
+                SourceCodeVulnerabilities(
+                    targetFile,
                     openaiApiClient.determineSourceCodeVulnerabilities(
                         targetFile,
                         targetFileContext.sourceCode,
                         targetFileContext.programmingLanguage,
                         targetFileContext.commonVulnerabilitiesMessage,
                         sastRuns
-                    )
+                    ),
+                    sastRuns,
                 )
-                sourceCodeVulnerabilities.sastVulnerabilities = sastRuns
-                sourceCodeVulnerabilities
             } else {
                 SourceCodeVulnerabilities(
+                    filepath = targetFile,
                     sastVulnerabilities = sastRuns,
                     finalizedVulnerabilities = sastRuns.toList(),
                     isVulnerable = sastRuns.isNotEmpty(),
