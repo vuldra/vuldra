@@ -124,11 +124,18 @@ class ScanCommand : CliktCommand(
         return coroutineScope {
             val sastRuns = mutableListOf<MinimizedRun>()
 
-            scanners.filter { it != Scanner.OPENAI }.map { scanner -> async { scanner.scanFile(targetFile) } }
+            scanners.filter { it != Scanner.OPENAI }.map { scanner ->
+                async {
+                    if (verbose) echo("${currentTime()} Started scanning file $targetFile with $scanner")
+                    scanner.scanFile(targetFile)
+                }
+            }
                 .forEach {
                     try {
                         val sastResult = it.await()
+                        if (sastResult.isEmpty()) error("SAST scan did not produce any runs")
                         sastRuns.addAll(sastResult)
+                        if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${sastResult.first().tool}")
                     } catch (e: Exception) {
                         echoError("Failed to scan file $targetFile: ${e.message}")
                     }
@@ -243,6 +250,7 @@ class ScanCommand : CliktCommand(
             )
         }
         if (!snippet.isNullOrBlank()) {
+            snippet = snippet.trimIndent()
             markdown += "\n\n```\n${snippet}\n```"
         }
         return markdown
