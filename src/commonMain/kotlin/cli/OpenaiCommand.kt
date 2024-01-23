@@ -9,6 +9,7 @@ import com.github.ajalt.mordant.rendering.TextColors
 import config.VuldraConfig
 import config.readVuldraConfig
 import config.writeVuldraConfig
+import echoError
 import io.runBlocking
 import openai.OpenaiApiClient
 
@@ -59,7 +60,7 @@ class LoginCommand : CliktCommand(
             writeVuldraConfig(vuldraConfig, verbose)
             echo(TextColors.green("Login successful!"))
         } catch (e: Exception) {
-            echo(TextColors.red("Login failed: ${e.message}"), err = true)
+            echoError("Login failed: ${e.message}")
         }
     }
 }

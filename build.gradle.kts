@@ -71,6 +71,7 @@ kotlin {
                 implementation(KotlinX.coroutines.core)
                 implementation(KotlinX.serialization.core)
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
                 implementation("io.github.detekt.sarif4k:sarif4k:0.5.0")
             }
         }
