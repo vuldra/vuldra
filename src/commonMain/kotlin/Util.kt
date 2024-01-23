@@ -1,3 +1,4 @@
+import io.ExecuteCommandOptions
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 
@@ -7,3 +8,6 @@ val unstrictJson = Json {
     explicitNulls = false
     isLenient = true
 }
+
+val externalCommandOptions =
+    ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)

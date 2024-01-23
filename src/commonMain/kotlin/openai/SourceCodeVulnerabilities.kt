@@ -1,12 +1,28 @@
 package openai
 
 import kotlinx.serialization.Serializable
-import sarif.MinimizedRunResult
+import sarif.MinimizedRun
 
 @Serializable
 data class SourceCodeVulnerabilities(
-    val gptDiscoveries: List<MinimizedRunResult>,
-    val comparisonToSastResult: String,
-    val finalizedDiscoveries: List<MinimizedRunResult>,
-    val isVulnerable: Boolean,
+    var gptVulnerabilities: List<MinimizedRun>? = null,
+    var sastVulnerabilities: List<MinimizedRun>? = null,
+    var reasoning: String? = null,
+    var finalizedVulnerabilities: List<MinimizedRun>,
+    var isVulnerable: Boolean,
+) {
+    constructor(gptVulnerabilities: GptVulnerabilities) : this(
+        gptVulnerabilities.gptVulnerabilities,
+        null,
+        gptVulnerabilities.reasoning,
+        gptVulnerabilities.finalizedVulnerabilities,
+        gptVulnerabilities.finalizedVulnerabilities.isNotEmpty(),
+    )
+}
+
+@Serializable
+data class GptVulnerabilities(
+    val gptVulnerabilities: List<MinimizedRun>,
+    val reasoning: String,
+    val finalizedVulnerabilities: List<MinimizedRun>,
 )

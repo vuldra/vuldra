@@ -13,8 +13,10 @@ import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
 import io.getEnvironmentVariable
+import sarif.MinimizedRun
 import unstrictJson
 import kotlin.time.Duration.Companion.minutes
+import kotlinx.serialization.encodeToString
 
 const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
 const val GPT4_1106_PREVIEW = "gpt-4-1106-preview"
@@ -83,21 +85,28 @@ class OpenaiApiClient(
         sourceCode: String,
         programmingLanguage: String,
         commonVulnerabilitiesMessage: ChatMessage,
-        sastResult: String
-    ): SourceCodeVulnerabilities {
+        sastRuns: List<MinimizedRun>
+    ): GptVulnerabilities {
         ensureOpenaiApiClientConfigured()
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(GPT4_1106_PREVIEW),
-            messages = listOf(
-                ChatMessage(
-                    role = ChatRole.Assistant,
-                    content = programmingLanguage
-                ),
-                commonVulnerabilitiesMessage,
+        val messages = mutableListOf(
+            ChatMessage(
+                role = ChatRole.Assistant,
+                content = programmingLanguage
+            ),
+            commonVulnerabilitiesMessage,
+        )
+
+        if (sastRuns.isNotEmpty()) {
+            messages.add(
                 ChatMessage(
                     role = ChatRole.User,
-                    content = sastResult
+                    content = unstrictJson.encodeToString(sastRuns)
                 ),
+            )
+        }
+
+        messages.addAll(
+            listOf(
                 ChatMessage(
                     role = ChatRole.System,
                     content = determineSourceCodeVulnerabilitiesPrompt
@@ -106,7 +115,12 @@ class OpenaiApiClient(
                     role = ChatRole.User,
                     content = "$targetFile\n\n$sourceCode"
                 )
-            ),
+            )
+        )
+
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(GPT4_1106_PREVIEW),
+            messages = messages,
             responseFormat = ChatResponseFormat.JsonObject,
         )
         val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()

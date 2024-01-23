@@ -1,20 +1,19 @@
 package cli
 
 import cli.CliConfig.FIND
-import cli.CliConfig.SEMGREP
 import cli.CliConfig.VULDRA_COMMAND
+import cli.scanner.Scanner
 import com.aallam.openai.api.chat.ChatMessage
 import com.github.ajalt.clikt.completion.CompletionCandidates
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
-import com.github.ajalt.clikt.parameters.options.flag
-import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.*
+import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.rendering.TextColors
-import io.ExecuteCommandOptions
+import externalCommandOptions
 import io.executeExternalCommandAndCaptureOutput
-import io.github.detekt.sarif4k.SarifSchema210
 import io.readAllText
 import io.runBlocking
 import kotlinx.coroutines.async
@@ -24,10 +23,11 @@ import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 import openai.OpenaiApiClient
 import openai.SourceCodeVulnerabilities
-import sarif.MinimizedSarifResult
-import unstrictJson
+import sarif.MinimizedRun
 
 const val SCAN_COMMAND = "scan"
+
+val scannerChoices = Scanner.entries.map { it.name.lowercase() }.toSet()
 
 class ScanCommand : CliktCommand(
     help = """
@@ -37,25 +37,31 @@ class ScanCommand : CliktCommand(
         By default all files of the current directory are scanned recursively, unless arguments are provided to specify targets.
         
         Examples:
-            $VULDRA_COMMAND $SCAN_COMMAND Vulnerable.java
-            $VULDRA_COMMAND $SCAN_COMMAND src/main/java src/main/kotlin
-    """.trimIndent(),
+    """.trimIndent()
+        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND Vulnerable.java")
+        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND src/main/java --pattern *.java")
+        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND --scanners semgrep openai"),
     name = SCAN_COMMAND
 ) {
-    val verbose by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
-    val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
-    val pattern: String? by option("--pattern", "-p", help = "Specify a shell pattern to match filenames")
     val targets: List<String> by argument(completionCandidates = CompletionCandidates.Path).multiple()
 
-    private val externalCommandOptions =
-        ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
+    val verbose: Boolean by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
+    val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
+    val pattern: String? by option("--pattern", "-p", help = "Specify a shell pattern to match filenames")
+    val scanners: List<Scanner> by option(
+        "--scanners",
+        "-s",
+        completionCandidates = CompletionCandidates.Fixed(scannerChoices)
+    )
+        .enum<Scanner> { it.name.lowercase() }
+        .varargValues()
+        .default(listOf(Scanner.SEMGREP, Scanner.OPENAI))
 
     private val jsonPretty = Json { prettyPrint = true }
 
     override fun run() {
-        val targetFiles: List<String>
-        try {
-            targetFiles = identifyTargetFiles()
+        val targetFiles = try {
+            identifyTargetFiles()
         } catch (e: Exception) {
             echo(TextColors.red("Failed to identify files for scanning: ${e.message}"))
             return
@@ -77,9 +83,12 @@ class ScanCommand : CliktCommand(
                 }
             }
         }
-        val vulnerabilityCount = sourceCodeVulnerabilities.sumOf { it.finalizedDiscoveries.size }
+        val vulnerabilityCount = sourceCodeVulnerabilities.sumOf {
+            it.finalizedVulnerabilities.sumOf { run -> run.results?.size ?: 0 }
+        }
         echo(TextColors.cyan(jsonPretty.encodeToString(sourceCodeVulnerabilities)))
-        val scanningSummaryMessage = "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files."
+        val scanningSummaryMessage =
+            "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files."
         if (vulnerabilityCount == 0) echo(TextColors.green(scanningSummaryMessage))
         else echo(TextColors.yellow(scanningSummaryMessage))
     }
@@ -102,37 +111,43 @@ class ScanCommand : CliktCommand(
         openaiApiClient: OpenaiApiClient
     ): SourceCodeVulnerabilities {
         return coroutineScope {
-            val minimizedSemgrepResultTask = async { scanTargetFileWithSemgrep(targetFile) }
-            val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
-            val minimizedSemgrepResult = minimizedSemgrepResultTask.await()
-            val targetFileContext = targetFileContextTask.await()
+            val sastRuns = mutableListOf<MinimizedRun>()
 
-            openaiApiClient.determineSourceCodeVulnerabilities(
-                targetFile,
-                targetFileContext.sourceCode,
-                targetFileContext.programmingLanguage,
-                targetFileContext.commonVulnerabilitiesMessage,
-                minimizedSemgrepResult
-            )
-        }
-    }
+            scanners.filter { it != Scanner.OPENAI }.map { scanner -> async { scanner.scanFile(targetFile) } }
+                .forEach {
+                    try {
+                        val sastResult = it.await()
+                        sastRuns.addAll(sastResult)
+                    } catch (e: Exception) {
+                        echo(TextColors.red("Failed to scan file $targetFile: ${e.message}"))
+                    }
+                }
 
-    private suspend fun scanTargetFileWithSemgrep(targetFile: String): String {
-        val semgrepSarifResponse =
-            executeExternalCommandAndCaptureOutput(semgrepScanCommand(targetFile), externalCommandOptions)
-        if (semgrepSarifResponse.isBlank()) {
-            echo(TextColors.red("Failed to scan file $targetFile with semgrep."))
-        }
-        val minimizedSarifResult =
-            MinimizedSarifResult(
-                unstrictJson.decodeFromString<SarifSchema210>(
-                    semgrepSarifResponse
+            if (scanners.contains(Scanner.OPENAI)) {
+                val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
+                val targetFileContext = targetFileContextTask.await()
+
+                val sourceCodeVulnerabilities = SourceCodeVulnerabilities(
+                    openaiApiClient.determineSourceCodeVulnerabilities(
+                        targetFile,
+                        targetFileContext.sourceCode,
+                        targetFileContext.programmingLanguage,
+                        targetFileContext.commonVulnerabilitiesMessage,
+                        sastRuns
+                    )
                 )
-            )
-        val minimizedResult = unstrictJson.encodeToString(minimizedSarifResult)
-        if (verbose) echo("Semgrep Result:\n$minimizedResult")
-        return minimizedResult
+                sourceCodeVulnerabilities.sastVulnerabilities = sastRuns
+                sourceCodeVulnerabilities
+            } else {
+                SourceCodeVulnerabilities(
+                    sastVulnerabilities = sastRuns,
+                    finalizedVulnerabilities = sastRuns.toList(),
+                    isVulnerable = sastRuns.isNotEmpty(),
+                )
+            }
+        }
     }
+
 
     private suspend fun gatherContextOfTargetFile(
         targetFile: String,
@@ -144,9 +159,6 @@ class ScanCommand : CliktCommand(
         val commonVulnerabilitiesMessage = openaiApiClient.determineCommonVulnerabilities(programmingLanguage)
         return TargetFilContext(sourceCode, programmingLanguage, commonVulnerabilitiesMessage)
     }
-
-    private fun semgrepScanCommand(targetFile: String): List<String> =
-        listOf(SEMGREP, "scan", "--config", "auto", "--quiet", "--sarif", targetFile)
 
     private fun findCommand(targets: List<String>): List<String> {
         val args = mutableListOf(FIND)
