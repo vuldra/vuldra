@@ -224,8 +224,8 @@ class ScanCommand : CliktCommand(
             if (vulnerabilityCount == 0) TextColors.green(scanningSummaryMessage)
             else TextColors.yellow(scanningSummaryMessage)
         )
-        if (aggregatedScanResult.evaluation != null) {
-            resultsInMarkdown += generateMarkdownForEvaluation(aggregatedScanResult.evaluation!!)
+        aggregatedScanResult.evaluation?.let {
+            resultsInMarkdown += it.generateMarkdown()
         }
 
         fileScanResults.forEach {
@@ -235,21 +235,6 @@ class ScanCommand : CliktCommand(
         }
         if (verbose) echo(resultsInMarkdown)
         echo(Markdown(resultsInMarkdown))
-    }
-
-    private fun generateMarkdownForEvaluation(evaluation: Evaluation): String {
-        var markdown = "\n\n**Evaluation**"
-        markdown += "\nPositives: ${evaluation.positives}"
-        markdown += "\nNegatives: ${evaluation.negatives}"
-        markdown += "\nTrue Positives: ${evaluation.truePositives}"
-        markdown += "\nFalse Positives: ${evaluation.falsePositives}"
-        markdown += "\nTrue Negatives: ${evaluation.trueNegatives}"
-        markdown += "\nFalse Negatives: ${evaluation.falseNegatives}"
-        markdown += "\nAccuracy: ${evaluation.accuracy}"
-        markdown += "\nPrecision: ${evaluation.precision}"
-        markdown += "\nRecall: ${evaluation.recall}"
-        markdown += "\nF1: ${evaluation.f1}"
-        return markdown
     }
 
     private fun generateMarkdownForVulnerabilities(vulnerabilities: FileScanResult): String {
