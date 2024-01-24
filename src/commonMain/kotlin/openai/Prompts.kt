@@ -74,7 +74,7 @@ val exampleJsonOutput2 = Json.encodeToString(
 val exampleJsonOutput3 = Json.encodeToString(
     GptVulnerabilities(
         listOf(),
-        "The SAST tool Semgrep OSS found a vulnerability that I missed, that is convincing.",
+        "The SAST tool Semgrep OSS found a vulnerability that I had overlooked, which is convincing.",
         listOf(
             MinimizedRun(
                 "Semgrep OSS",
@@ -92,6 +92,19 @@ val exampleJsonOutput4 = Json.encodeToString(
 )
 
 val determineSourceCodeVulnerabilitiesPrompt = """
+    You are a professional security analyst. You always answer in JSON format.
+
+    List all vulnerabilities in provided source code file. Look both for common and uncommon vulnerabilities.
+    If there are no vulnerabilities, output an empty array. Answer in less than 100 words.
+
+    Examples of JSON output you should produce:
+    $exampleJsonOutput1
+    $exampleJsonOutput2
+    $exampleJsonOutput3
+    $exampleJsonOutput4
+""".trimIndent()
+
+val finalizeVulnerabilitiesPrompt = """
     You are a professional security analyst. You always answer in JSON format.
     
     Step 1:

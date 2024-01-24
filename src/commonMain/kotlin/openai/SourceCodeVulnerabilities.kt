@@ -12,19 +12,23 @@ data class SourceCodeVulnerabilities(
     var finalizedVulnerabilities: List<MinimizedRun>,
     var isVulnerable: Boolean,
 ) {
-    constructor(filepath: String, gptVulnerabilities: GptVulnerabilities, sastVulnerabilities: List<MinimizedRun>?) : this(
-        filepath,
-        gptVulnerabilities.gptVulnerabilities,
-        sastVulnerabilities,
-        gptVulnerabilities.reasoning,
-        gptVulnerabilities.finalizedVulnerabilities,
-        gptVulnerabilities.finalizedVulnerabilities.isNotEmpty(),
+    constructor(
+        filepath: String,
+        gptVulnerabilities: List<MinimizedRun>?,
+        sastVulnerabilities: List<MinimizedRun>?,
+        reasonedVulnerabilities: ReasonedVulnerabilities
+    ) : this(
+        filepath = filepath,
+        gptVulnerabilities = gptVulnerabilities,
+        sastVulnerabilities = sastVulnerabilities,
+        reasoning = reasonedVulnerabilities.reasoning,
+        finalizedVulnerabilities = reasonedVulnerabilities.vulnerabilities,
+        isVulnerable = reasonedVulnerabilities.vulnerabilities.isNotEmpty(),
     )
 }
 
 @Serializable
-data class GptVulnerabilities(
-    val gptVulnerabilities: List<MinimizedRun>,
+data class ReasonedVulnerabilities(
     val reasoning: String,
-    val finalizedVulnerabilities: List<MinimizedRun>,
+    val vulnerabilities: List<MinimizedRun>,
 )

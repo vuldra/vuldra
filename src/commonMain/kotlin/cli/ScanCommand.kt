@@ -145,8 +145,8 @@ class ScanCommand : CliktCommand(
                 val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
                 val targetFileContext = targetFileContextTask.await()
                 SourceCodeVulnerabilities(
-                    targetFile,
-                    openaiApiClient.determineSourceCodeVulnerabilities(
+                    filepath = targetFile,
+                    openaiApiClient.reasonedVulnerabilities(
                         targetFile,
                         targetFileContext.sourceCode,
                         targetFileContext.programmingLanguage,

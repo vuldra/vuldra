@@ -80,13 +80,67 @@ class OpenaiApiClient(
         return completion.choices.first().message
     }
 
-    suspend fun determineSourceCodeVulnerabilities(
+    suspend fun scanFileForVulnerabilities(
         targetFile: String,
         sourceCode: String,
         programmingLanguage: String,
         commonVulnerabilitiesMessage: ChatMessage,
         sastRuns: List<MinimizedRun>
-    ): GptVulnerabilities {
+    ): List<> {
+        ensureOpenaiApiClientConfigured()
+        val messages = mutableListOf(
+            ChatMessage(
+                role = ChatRole.Assistant,
+                content = programmingLanguage
+            ),
+            commonVulnerabilitiesMessage,
+        )
+
+        if (sastRuns.isNotEmpty()) {
+            messages.add(
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = unstrictJson.encodeToString(sastRuns)
+                ),
+            )
+        }
+
+        messages.addAll(
+            listOf(
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = determineSourceCodeVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = "$targetFile\n\n$sourceCode"
+                )
+            )
+        )
+
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(GPT4_1106_PREVIEW),
+            messages = messages,
+            responseFormat = ChatResponseFormat.JsonObject,
+        )
+        val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
+        if (chatChoice.finishReason == FinishReason.Length) {
+            error("Input tokens plus JSON output exceed context window of model $GPT4_1106_PREVIEW")
+        }
+        try {
+            return unstrictJson.decodeFromString(chatChoice.message.content!!)
+        } catch (e: Exception) {
+            error("Failed to parse JSON output from OpenAI API: ${e.message}")
+        }
+    }
+
+    suspend fun reasonedVulnerabilities(
+        targetFile: String,
+        sourceCode: String,
+        programmingLanguage: String,
+        commonVulnerabilitiesMessage: ChatMessage,
+        sastRuns: List<MinimizedRun>
+    ): ReasonedVulnerabilities {
         ensureOpenaiApiClientConfigured()
         val messages = mutableListOf(
             ChatMessage(
