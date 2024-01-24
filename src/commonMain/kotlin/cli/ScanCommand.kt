@@ -8,12 +8,16 @@ import com.github.ajalt.clikt.completion.CompletionCandidates
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
-import com.github.ajalt.clikt.parameters.options.*
+import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.varargValues
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.markdown.Markdown
 import com.github.ajalt.mordant.rendering.TextColors
 import currentTime
+import data.*
 import echoError
 import externalCommandOptions
 import io.executeExternalCommandAndCaptureOutput
@@ -26,9 +30,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 import openai.OpenaiApiClient
-import openai.SourceCodeVulnerabilities
-import sarif.MinimizedRegion
-import sarif.MinimizedRun
 
 const val SCAN_COMMAND = "scan"
 
@@ -52,7 +53,7 @@ class ScanCommand : CliktCommand(
 
     val verbose: Boolean by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
     val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
-    val pattern: String? by option("--pattern", "-p", help = "Specify a shell pattern to match filenames")
+    val include: String? by option("--include", "-i", help = "Specify a shell pattern to match filenames")
     val scanners: List<Scanner> by option(
         "--scanners",
         "-s",
@@ -61,6 +62,11 @@ class ScanCommand : CliktCommand(
         .enum<Scanner> { it.name.lowercase() }
         .varargValues()
         .default(listOf(Scanner.SEMGREP, Scanner.OPENAI))
+
+    val vulnerableFileRegex: String? by option(
+        "--vulnerable-files",
+        help = "Specify a regex to match vulnerable files and evaluate vuldra results based on that."
+    )
 
     private val jsonPretty = Json { prettyPrint = true }
 
@@ -72,7 +78,7 @@ class ScanCommand : CliktCommand(
             return
         }
         val openaiApiClient = OpenaiApiClient(verbose = verbose)
-        val sourceCodeVulnerabilities = mutableListOf<SourceCodeVulnerabilities>()
+        val fileScanResults = mutableListOf<FileScanResult>()
         runBlocking {
             if (scanners.contains(Scanner.OPENAI)) {
                 try {
@@ -95,13 +101,17 @@ class ScanCommand : CliktCommand(
                     }
                 }.forEach { deferred ->
                     deferred.await()?.let {
-                        sourceCodeVulnerabilities.add(it)
+                        fileScanResults.add(it)
                         if (verbose) echo("${currentTime()} Finished scanning file ${it.filepath}")
                     }
                 }
             }
         }
-        outputScanResults(sourceCodeVulnerabilities, targetFiles)
+        val aggregatedScanResult = AggregatedScanResult(fileScanResults)
+        vulnerableFileRegex?.let {
+            aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
+        }
+        outputScanResults(aggregatedScanResult, targetFiles)
     }
 
     private fun identifyTargetFiles(): List<String> {
@@ -120,7 +130,7 @@ class ScanCommand : CliktCommand(
     private suspend fun scanTargetFile(
         targetFile: String,
         openaiApiClient: OpenaiApiClient
-    ): SourceCodeVulnerabilities {
+    ): FileScanResult {
         return coroutineScope {
             val sastRuns = mutableListOf<MinimizedRun>()
 
@@ -144,7 +154,7 @@ class ScanCommand : CliktCommand(
             if (scanners.contains(Scanner.OPENAI)) {
                 val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
                 val targetFileContext = targetFileContextTask.await()
-                SourceCodeVulnerabilities(
+                FileScanResult(
                     targetFile,
                     openaiApiClient.determineSourceCodeVulnerabilities(
                         targetFile,
@@ -156,7 +166,7 @@ class ScanCommand : CliktCommand(
                     sastRuns,
                 )
             } else {
-                SourceCodeVulnerabilities(
+                FileScanResult(
                     filepath = targetFile,
                     sastVulnerabilities = sastRuns,
                     finalizedVulnerabilities = sastRuns.toList(),
@@ -189,19 +199,21 @@ class ScanCommand : CliktCommand(
             args += "-maxdepth"
             args += (depth!! + 1).toString()
         }
-        if (pattern != null) {
+        if (include != null) {
             args += "-name"
-            args += pattern!!
+            args += include!!
         }
         return args.also { if (verbose) println("$ $it") }
     }
 
     private fun outputScanResults(
-        sourceCodeVulnerabilities: List<SourceCodeVulnerabilities>,
+        aggregatedScanResult: AggregatedScanResult,
         targetFiles: List<String>
     ) {
-        if (verbose) echo(TextColors.cyan(jsonPretty.encodeToString(sourceCodeVulnerabilities)))
-        val vulnerabilityCount = sourceCodeVulnerabilities.sumOf {
+        if (verbose) echo(TextColors.cyan(jsonPretty.encodeToString(aggregatedScanResult)))
+
+        val fileScanResults = aggregatedScanResult.fileScanResults
+        val vulnerabilityCount = fileScanResults.sumOf {
             it.finalizedVulnerabilities.sumOf { run -> run.results?.size ?: 0 }
         }
         val scanningSummaryMessage =
@@ -212,8 +224,11 @@ class ScanCommand : CliktCommand(
             if (vulnerabilityCount == 0) TextColors.green(scanningSummaryMessage)
             else TextColors.yellow(scanningSummaryMessage)
         )
+        if (aggregatedScanResult.evaluation != null) {
+            resultsInMarkdown += generateMarkdownForEvaluation(aggregatedScanResult.evaluation!!)
+        }
 
-        sourceCodeVulnerabilities.forEach {
+        fileScanResults.forEach {
             if (it.isVulnerable) {
                 resultsInMarkdown += generateMarkdownForVulnerabilities(it)
             }
@@ -222,7 +237,22 @@ class ScanCommand : CliktCommand(
         echo(Markdown(resultsInMarkdown))
     }
 
-    private fun generateMarkdownForVulnerabilities(vulnerabilities: SourceCodeVulnerabilities): String {
+    private fun generateMarkdownForEvaluation(evaluation: Evaluation): String {
+        var markdown = "\n\n**Evaluation**"
+        markdown += "\nPositives: ${evaluation.positives}"
+        markdown += "\nNegatives: ${evaluation.negatives}"
+        markdown += "\nTrue Positives: ${evaluation.truePositives}"
+        markdown += "\nFalse Positives: ${evaluation.falsePositives}"
+        markdown += "\nTrue Negatives: ${evaluation.trueNegatives}"
+        markdown += "\nFalse Negatives: ${evaluation.falseNegatives}"
+        markdown += "\nAccuracy: ${evaluation.accuracy}"
+        markdown += "\nPrecision: ${evaluation.precision}"
+        markdown += "\nRecall: ${evaluation.recall}"
+        markdown += "\nF1: ${evaluation.f1}"
+        return markdown
+    }
+
+    private fun generateMarkdownForVulnerabilities(vulnerabilities: FileScanResult): String {
         var markdown = "\n\n## ${vulnerabilities.filepath}"
         vulnerabilities.finalizedVulnerabilities.forEach { run ->
             run.results?.forEach { result ->
@@ -236,7 +266,7 @@ class ScanCommand : CliktCommand(
     }
 
     private fun generateMarkdownForCodeRegion(
-        vulnerabilities: SourceCodeVulnerabilities,
+        vulnerabilities: FileScanResult,
         region: MinimizedRegion
     ): String {
         var markdown = ""

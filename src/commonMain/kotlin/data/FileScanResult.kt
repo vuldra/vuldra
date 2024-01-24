@@ -1,10 +1,15 @@
-package openai
+package data
 
 import kotlinx.serialization.Serializable
-import sarif.MinimizedRun
 
 @Serializable
-data class SourceCodeVulnerabilities(
+data class AggregatedScanResult(
+    val fileScanResults: List<FileScanResult>,
+    var evaluation: Evaluation? = null
+)
+
+@Serializable
+data class FileScanResult(
     val filepath: String,
     var gptVulnerabilities: List<MinimizedRun>? = null,
     var sastVulnerabilities: List<MinimizedRun>? = null,
@@ -12,7 +17,11 @@ data class SourceCodeVulnerabilities(
     var finalizedVulnerabilities: List<MinimizedRun>,
     var isVulnerable: Boolean,
 ) {
-    constructor(filepath: String, gptVulnerabilities: GptVulnerabilities, sastVulnerabilities: List<MinimizedRun>?) : this(
+    constructor(
+        filepath: String,
+        gptVulnerabilities: GptVulnerabilities,
+        sastVulnerabilities: List<MinimizedRun>?
+    ) : this(
         filepath,
         gptVulnerabilities.gptVulnerabilities,
         sastVulnerabilities,

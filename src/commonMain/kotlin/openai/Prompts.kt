@@ -1,10 +1,11 @@
 package openai
 
+import data.GptVulnerabilities
+import data.MinimizedRegion
+import data.MinimizedRun
+import data.MinimizedRunResult
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import sarif.MinimizedRegion
-import sarif.MinimizedRun
-import sarif.MinimizedRunResult
 
 val determineSourceCodeLanguagePrompt = """
     Determine most likely programming language for provided filename and source code. Answer in less than 10 words.
