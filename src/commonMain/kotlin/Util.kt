@@ -17,6 +17,7 @@ val unstrictJson = Json {
 val externalCommandOptions =
     ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
 
+fun CliktCommand.echoWarn(message: String) = echo(message = TextColors.yellow(message))
 fun CliktCommand.echoError(message: String) = echo(message = TextColors.red(message), err = true)
 
 fun currentTime() = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).time.toString()

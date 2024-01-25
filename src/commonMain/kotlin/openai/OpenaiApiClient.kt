@@ -3,7 +3,10 @@ package openai
 import cli.CliConfig
 import cli.LOGIN_COMMAND
 import cli.OPENAI_COMMAND
-import com.aallam.openai.api.chat.*
+import com.aallam.openai.api.chat.ChatCompletionRequest
+import com.aallam.openai.api.chat.ChatMessage
+import com.aallam.openai.api.chat.ChatResponseFormat
+import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.core.FinishReason
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.logging.LogLevel
@@ -12,8 +15,8 @@ import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
-import data.GptVulnerabilities
 import data.MinimizedRun
+import data.ReasonedVulnerabilities
 import io.getEnvironmentVariable
 import kotlinx.serialization.encodeToString
 import unstrictJson
@@ -33,160 +36,54 @@ class OpenaiApiClient(
 ) {
     private var openaiClient: OpenAI? = null
 
-    suspend fun determineSourceCodeLanguage(targetFile: String, sourceCode: String): String? {
-        ensureOpenaiApiClientConfigured()
-        var sourceCodeSnippet = sourceCode
-        val maxInputTokens = 1000 // should be enough tokens to determine language
-        if (maxInputTokens > CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 - MAX_OUTPUT_TOKENS) {
-            error("MaxInputTokens $maxInputTokens to large for context window of model $GPT3_5_TURBO_1106")
-        }
-        if (sourceCode.length / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
-            sourceCodeSnippet = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
-        }
-
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(GPT3_5_TURBO_1106),
-            messages = listOf(
-                ChatMessage(
-                    role = ChatRole.System,
-                    content = determineSourceCodeLanguagePrompt
-                ),
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = "$targetFile\n\n$sourceCodeSnippet"
-                )
-            ),
-        )
-        val completion: ChatCompletion = openaiClient!!.chatCompletion(chatCompletionRequest)
-        // TODO deal with finish_reason before decoding from JSON
-        return completion.choices.first().message.content
-    }
-
-    suspend fun determineCommonVulnerabilities(programmingLanguage: String): ChatMessage {
-        ensureOpenaiApiClientConfigured()
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(GPT3_5_TURBO_1106),
-            messages = listOf(
-                ChatMessage(
-                    role = ChatRole.System,
-                    content = determineCommonVulnerabilitiesPrompt
-                ),
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = programmingLanguage
-                )
-            ),
-        )
-        val completion: ChatCompletion = openaiClient!!.chatCompletion(chatCompletionRequest)
-        return completion.choices.first().message
-    }
-
-    suspend fun scanFileForVulnerabilities(
-        targetFile: String,
+    suspend fun findVulnerabilities(
         sourceCode: String,
-        programmingLanguage: String,
-        commonVulnerabilitiesMessage: ChatMessage,
-        sastRuns: List<MinimizedRun>
-    ): List<> {
+    ): MinimizedRun {
         ensureOpenaiApiClientConfigured()
-        val messages = mutableListOf(
-            ChatMessage(
-                role = ChatRole.Assistant,
-                content = programmingLanguage
-            ),
-            commonVulnerabilitiesMessage,
-        )
-
-        if (sastRuns.isNotEmpty()) {
-            messages.add(
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = unstrictJson.encodeToString(sastRuns)
-                ),
-            )
-        }
-
-        messages.addAll(
-            listOf(
-                ChatMessage(
-                    role = ChatRole.System,
-                    content = determineSourceCodeVulnerabilitiesPrompt
-                ),
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = "$targetFile\n\n$sourceCode"
-                )
-            )
-        )
-
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(GPT4_1106_PREVIEW),
-            messages = messages,
+            messages = listOf(
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = findVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = sourceCode
+                )
+            ),
             responseFormat = ChatResponseFormat.JsonObject,
         )
+        return unstrictJson.decodeFromString(request(chatCompletionRequest))
+    }
+
+    private suspend fun request(chatCompletionRequest: ChatCompletionRequest): String {
         val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
         if (chatChoice.finishReason == FinishReason.Length) {
             error("Input tokens plus JSON output exceed context window of model $GPT4_1106_PREVIEW")
         }
-        try {
-            return unstrictJson.decodeFromString(chatChoice.message.content!!)
-        } catch (e: Exception) {
-            error("Failed to parse JSON output from OpenAI API: ${e.message}")
-        }
+        return chatChoice.message.content!!
     }
 
-    suspend fun reasonedVulnerabilities(
-        targetFile: String,
-        sourceCode: String,
-        programmingLanguage: String,
-        commonVulnerabilitiesMessage: ChatMessage,
-        sastRuns: List<MinimizedRun>
+    suspend fun reasonVulnerabilities(
+        runs: List<MinimizedRun>
     ): ReasonedVulnerabilities {
         ensureOpenaiApiClientConfigured()
-        val messages = mutableListOf(
-            ChatMessage(
-                role = ChatRole.Assistant,
-                content = programmingLanguage
-            ),
-            commonVulnerabilitiesMessage,
-        )
-
-        if (sastRuns.isNotEmpty()) {
-            messages.add(
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = unstrictJson.encodeToString(sastRuns)
-                ),
-            )
-        }
-
-        messages.addAll(
-            listOf(
-                ChatMessage(
-                    role = ChatRole.System,
-                    content = determineSourceCodeVulnerabilitiesPrompt
-                ),
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = "$targetFile\n\n$sourceCode"
-                )
-            )
-        )
-
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(GPT4_1106_PREVIEW),
-            messages = messages,
+            messages = listOf(
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = reasonVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = unstrictJson.encodeToString(runs)
+                ),
+            ),
             responseFormat = ChatResponseFormat.JsonObject,
         )
-        val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
-        if (chatChoice.finishReason == FinishReason.Length) {
-            error("Input tokens plus JSON output exceed context window of model $GPT4_1106_PREVIEW")
-        }
-        try {
-            return unstrictJson.decodeFromString(chatChoice.message.content!!)
-        } catch (e: Exception) {
-            error("Failed to parse JSON output from OpenAI API: ${e.message}")
-        }
+        return unstrictJson.decodeFromString(request(chatCompletionRequest))
     }
 
     suspend fun listModels(): List<Model> {

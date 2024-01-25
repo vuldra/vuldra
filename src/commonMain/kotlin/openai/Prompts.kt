@@ -1,69 +1,58 @@
 package openai
 
-import data.GptVulnerabilities
+import cli.MAX_CODE_LINES_PER_REGION
+import cli.MAX_CODE_REGIONS_PER_VULNERABILITY
 import data.MinimizedRegion
 import data.MinimizedRun
 import data.MinimizedRunResult
+import data.ReasonedVulnerabilities
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-val determineSourceCodeLanguagePrompt = """
-    Determine most likely programming language for provided filename and source code. Answer in less than 10 words.
-    
-    Examples:
-    
-    Main.java
-    
-    int n = 10;
-    int[] array = new int[n];
-    
-    Source code is likely Java.
-    
-    
-    script.py
-    
-    def hello():
-        print "Hello"
-    
-    Source code is likely Python.
+private val exampleVulnerabilities1 = MinimizedRun(
+    "GPT",
+    listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 6)), "SQL Injection"))
+)
+private val exampleVulnerabilities2 = MinimizedRun(
+    "GPT",
+    listOf(MinimizedRunResult(listOf(MinimizedRegion(3, 5), MinimizedRegion(12, 13)), "Directory Traversal"))
+)
+private val exampleVulnerabilities3 = MinimizedRun(
+    "GPT",
+    listOf()
+)
+
+val findVulnerabilitiesPrompt = """
+    Find any vulnerabilities in the source code provided.
+    Describe each vulnerability found in less than 5 words.
+    Include relevant source code line regions for vulnerabilities found.
+    Include maximum $MAX_CODE_REGIONS_PER_VULNERABILITY regions per vulnerability.
+    Each region should have maximum $MAX_CODE_LINES_PER_REGION lines.
+    If the code is not vulnerable, return an empty results array.
+    Always respond in JSON format.
+
+    Examples of JSON output you should produce:
+    $exampleVulnerabilities1
+    $exampleVulnerabilities2
+    $exampleVulnerabilities3
 """.trimIndent()
 
-val determineCommonVulnerabilitiesPrompt = """
-    Determine 10 common vulnerabilities related to the given programming language. Answer in less than 50 words.
-    
-    Example:
-    
-    Source code is likely Java.
-    
-    Some common vulnerabilities in Java are:
-    SQL Injection
-    Cross-Site Scripting (XSS)
-    Cross-Site Request Forgery (CSRF)
-    Insecure Deserialization
-    Directory Traversal
-    XML External Entity (XXE) Injection
-    Insecure Cryptography
-    Hard-Coded Credentials
-    Insecure Default Configurations
-    Improper Error Handling
-""".trimIndent()
 
-val exampleJsonOutput1 = Json.encodeToString(
-    GptVulnerabilities(
-        listOf(),
-        "Neither the SAST tools nor I found any vulnerabilities.",
+private val exampleReasoning1 = Json.encodeToString(
+    ReasonedVulnerabilities(
+        "SAST tools and GPT found no vulnerabilities.",
         listOf(),
     )
 )
-val exampleJsonOutput2 = Json.encodeToString(
-    GptVulnerabilities(
-        listOf(
-            MinimizedRun(
-                "GPT",
-                listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 6)), "SQL Injection"))
-            )
-        ),
-        "I am certain I found a convincing vulnerability that the SAST tools missed.",
+private val exampleReasoning2 = Json.encodeToString(
+    ReasonedVulnerabilities(
+        "SAST tools found no vulnerabilities. Buffer Overflow vulnerability found by GPT is unconvincing.",
+        listOf(),
+    )
+)
+private val exampleReasoning3 = Json.encodeToString(
+    ReasonedVulnerabilities(
+        "GPT found a convincing SQL Injection vulnerability that SAST tools missed.",
         listOf(
             MinimizedRun(
                 "GPT",
@@ -72,57 +61,29 @@ val exampleJsonOutput2 = Json.encodeToString(
         ),
     )
 )
-val exampleJsonOutput3 = Json.encodeToString(
-    GptVulnerabilities(
-        listOf(),
-        "The SAST tool Semgrep OSS found a vulnerability that I had overlooked, which is convincing.",
+private val exampleReasoning4 = Json.encodeToString(
+    ReasonedVulnerabilities(
+        "SAST tool Semgrep OSS found a convincing Buffer Overflow vulnerability that GPT missed. SQL Injection vulnerability found by SAST tool Snyk is unconvincing.",
         listOf(
             MinimizedRun(
                 "Semgrep OSS",
-                listOf(MinimizedRunResult(listOf(MinimizedRegion(8, 8)), "Buffer Overflows"))
+                listOf(MinimizedRunResult(listOf(MinimizedRegion(8, 8)), "Buffer Overflow"))
             )
         ),
     )
 )
-val exampleJsonOutput4 = Json.encodeToString(
-    GptVulnerabilities(
-        listOf(),
-        "The SAST tool Semgrep OSS found a vulnerability that I find unconvincing.",
-        listOf(),
-    )
-)
-
-val determineSourceCodeVulnerabilitiesPrompt = """
-    You are a professional security analyst. You always answer in JSON format.
-
-    List all vulnerabilities in provided source code file. Look both for common and uncommon vulnerabilities.
-    If there are no vulnerabilities, output an empty array. Answer in less than 100 words.
+val reasonVulnerabilitiesPrompt = """
+    Reason about vulnerabilities which were previously found by you (GPT) and given vulnerabilities found by SAST tools.
+    Reason in less than 100 words.
+    After reasoning, only list vulnerabilities that are convincing.
+    Only include line numbers but no code snippets in the response.
+    Respond with an empty results array, if no vulnerabilities are very convincing.
+    Always respond in JSON format.
 
     Examples of JSON output you should produce:
-    $exampleJsonOutput1
-    $exampleJsonOutput2
-    $exampleJsonOutput3
-    $exampleJsonOutput4
-""".trimIndent()
-
-val finalizeVulnerabilitiesPrompt = """
-    You are a professional security analyst. You always answer in JSON format.
-    
-    Step 1:
-    List all vulnerabilities in provided source code file. Look both for common and uncommon vulnerabilities.
-    If there are no vulnerabilities, output an empty array. Answer in less than 100 words.
-    
-    Step 2:
-    Compare your results to the given SAST tool results and reason about any differences. Answer in less than 100 words.
-    
-    Step 3:
-    Finalize discoveries concisely based on step 2. Include any vulnerabilities that are convincing. Discard any vulnerabilities from SAST tools or you, which are not convincing anymore.
-    Each discovery should be described with less than 30 words.
-
-    Examples of JSON output you should produce:
-    $exampleJsonOutput1
-    $exampleJsonOutput2
-    $exampleJsonOutput3
-    $exampleJsonOutput4
+    $exampleReasoning1
+    $exampleReasoning2
+    $exampleReasoning3
+    $exampleReasoning4
 """.trimIndent()
 

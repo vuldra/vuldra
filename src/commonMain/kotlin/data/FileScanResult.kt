@@ -12,23 +12,20 @@ data class AggregatedScanResult(
 @Serializable
 data class FileScanResult(
     val filepath: String,
-    var gptVulnerabilities: List<MinimizedRun>? = null,
-    var sastVulnerabilities: List<MinimizedRun>? = null,
+    var runs: List<MinimizedRun>? = null,
     var reasoning: String? = null,
-    var finalizedVulnerabilities: List<MinimizedRun>,
+    var vulnerabilities: List<MinimizedRun>,
     var isVulnerable: Boolean,
 ) {
     constructor(
         filepath: String,
-        gptVulnerabilities: List<MinimizedRun>?,
-        sastVulnerabilities: List<MinimizedRun>?,
+        runs: List<MinimizedRun>,
         reasonedVulnerabilities: ReasonedVulnerabilities
     ) : this(
         filepath = filepath,
-        gptVulnerabilities = gptVulnerabilities,
-        sastVulnerabilities = sastVulnerabilities,
+        runs = runs,
         reasoning = reasonedVulnerabilities.reasoning,
-        finalizedVulnerabilities = reasonedVulnerabilities.vulnerabilities,
+        vulnerabilities = reasonedVulnerabilities.vulnerabilities,
         isVulnerable = reasonedVulnerabilities.vulnerabilities.isNotEmpty(),
     )
 }

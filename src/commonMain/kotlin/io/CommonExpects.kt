@@ -3,7 +3,6 @@ package io
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path.Companion.toPath
-import okio.use
 
 expect val platform: Platform
 expect val compilationTarget: CompilationTarget
@@ -14,19 +13,14 @@ fun readAllText(filePath: String): String =
         readUtf8()
     }
 
-fun readLinesInRange(filePath: String, startLine: Int, endLine: Int): String {
-    val snippet = ""
+fun readAllLines(filePath: String): List<String> {
+    val lines = mutableListOf<String>()
     fileSystem.read(filePath.toPath()) {
-        this.buffer.use { reader ->
-            for (i in 1.. endLine) {
-                val line = reader.readUtf8Line() ?: break
-                if (i >= startLine) {
-                    snippet.plus(line)
-                }
-            }
+        while (true) {
+            lines.add(readUtf8LineStrict(512))
         }
     }
-    return snippet
+    return lines
 }
 
 inline fun <reified T> readDataFromJsonFile(filePath: String) =

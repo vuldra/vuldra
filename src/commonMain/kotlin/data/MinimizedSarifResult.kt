@@ -37,17 +37,16 @@ data class MinimizedRun(
 
 @Serializable
 data class MinimizedRunResult(
-    val regions: List<MinimizedRegion>?,
+    var regions: List<MinimizedRegion>?,
     val message: String?,
     val ruleId: String? = null,
 )
-
 
 @Serializable
 data class MinimizedRegion(
     val startLine: Long?,
     val endLine: Long?,
-    val snippet: String? = null,
+    var snippet: String? = null,
 ) {
     constructor(region: Region) : this(
         startLine = region.startLine,
