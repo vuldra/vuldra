@@ -23,7 +23,7 @@ fun readVuldraConfig(verbose: Boolean = false): VuldraConfig? {
 }
 
 private fun doesVuldraConfigFileExists(): Boolean =
-    io.fileIsReadable(vuldraConfigPath())
+    io.isFileReadable(vuldraConfigPath())
 
 private fun vuldraConfigPath() =
     "${localUserConfigDirectory()}/.vuldra.json".toPath().toString()

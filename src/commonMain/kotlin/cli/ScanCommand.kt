@@ -21,12 +21,10 @@ import currentTime
 import data.*
 import echoError
 import externalCommandOptions
-import io.executeExternalCommandAndCaptureOutput
-import io.readAllText
-import io.readLinesInRange
-import io.runBlocking
+import io.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
@@ -50,7 +48,7 @@ class ScanCommand : CliktCommand(
         .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --scanners openai"),
     name = SCAN_COMMAND,
 
-) {
+    ) {
     val targets: List<String> by argument(completionCandidates = CompletionCandidates.Path).multiple()
 
     val verbose: Boolean by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
@@ -65,7 +63,6 @@ class ScanCommand : CliktCommand(
         .enum<Scanner> { it.name.lowercase() }
         .varargValues()
         .default(listOf(Scanner.SEMGREP, Scanner.OPENAI))
-
     val evaluationRegex: String? by option(
         "--evaluation-regex",
         help = """
@@ -73,12 +70,17 @@ class ScanCommand : CliktCommand(
             The regex is only matched against the filename, not the full path.
             This does not affect the actual scanning process.
         """.trimIndent(),
-
+    )
+    val output: String? by option(
+        "--output",
+        "-o",
+        help = "Specify a full filepath to write JSON formatted scan results to.",
     )
 
     private val jsonPretty = Json { prettyPrint = true }
 
     override fun run() {
+        val scanStartTime = Clock.System.now()
         val targetFiles = try {
             identifyTargetFiles()
         } catch (e: Exception) {
@@ -115,7 +117,12 @@ class ScanCommand : CliktCommand(
                 }
             }
         }
-        val aggregatedScanResult = AggregatedScanResult(fileScanResults)
+        val scanEndTime = Clock.System.now()
+
+        val aggregatedScanResult = AggregatedScanResult(
+            Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
+            fileScanResults,
+        )
         evaluationRegex?.let {
             aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
         }
@@ -223,7 +230,8 @@ class ScanCommand : CliktCommand(
         aggregatedScanResult: AggregatedScanResult,
         targetFiles: List<String>
     ) {
-        if (verbose) echo(TextColors.cyan(jsonPretty.encodeToString(aggregatedScanResult)))
+        val aggregatedScanResultJson = jsonPretty.encodeToString(aggregatedScanResult)
+        if (verbose) echo(TextColors.cyan(aggregatedScanResultJson))
 
         val fileScanResults = aggregatedScanResult.fileScanResults
         outputMarkdownHeadingAndSummary(fileScanResults, targetFiles)
@@ -238,6 +246,13 @@ class ScanCommand : CliktCommand(
             }
         }
         echo(Markdown(markdown))
+        output?.let {
+            try {
+                writeAllText(it, aggregatedScanResultJson)
+            } catch (e: Exception) {
+                echoError("Failed to write scan results to $it: ${e.message}")
+            }
+        }
     }
 
     private fun outputMarkdownHeadingAndSummary(

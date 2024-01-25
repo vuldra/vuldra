@@ -42,7 +42,7 @@ fun writeAllLines(
     lines: List<String>
 ) = writeAllText(filePath, lines.joinToString(separator = "\n"))
 
-fun fileIsReadable(filePath: String): Boolean =
+fun isFileReadable(filePath: String): Boolean =
     fileSystem.exists(filePath.toPath())
 
 expect suspend fun executeExternalCommandAndCaptureOutput(

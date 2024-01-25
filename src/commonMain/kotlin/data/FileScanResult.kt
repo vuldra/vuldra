@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AggregatedScanResult(
+    val statistics: Statistics,
     val fileScanResults: List<FileScanResult>,
     var evaluation: Evaluation? = null
 )
