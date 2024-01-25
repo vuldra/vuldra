@@ -45,10 +45,11 @@ class ScanCommand : CliktCommand(
         
         Examples:
     """.trimIndent()
-        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND Vulnerable.java")
-        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND --pattern *.java src/main/java")
-        .plus("\n$VULDRA_COMMAND $SCAN_COMMAND --scanners semgrep openai"),
-    name = SCAN_COMMAND
+        .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND Vulnerable.java")
+        .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --pattern *.java src/main/java")
+        .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --scanners openai"),
+    name = SCAN_COMMAND,
+
 ) {
     val targets: List<String> by argument(completionCandidates = CompletionCandidates.Path).multiple()
 
@@ -58,15 +59,21 @@ class ScanCommand : CliktCommand(
     val scanners: List<Scanner> by option(
         "--scanners",
         "-s",
-        completionCandidates = CompletionCandidates.Fixed(scannerChoices)
+        completionCandidates = CompletionCandidates.Fixed(scannerChoices),
+        help = "Specify which scanners to use. Defaults to try all scanners.",
     )
         .enum<Scanner> { it.name.lowercase() }
         .varargValues()
         .default(listOf(Scanner.SEMGREP, Scanner.OPENAI))
 
-    val vulnerableFileRegex: String? by option(
-        "--vulnerable-files",
-        help = "Specify a regex to match vulnerable files and evaluate vuldra results based on that."
+    val evaluationRegex: String? by option(
+        "--evaluation-regex",
+        help = """
+            Specify a regex to match known vulnerable filenames and evaluate scan results.
+            The regex is only matched against the filename, not the full path.
+            This does not affect the actual scanning process.
+        """.trimIndent(),
+
     )
 
     private val jsonPretty = Json { prettyPrint = true }
@@ -109,7 +116,7 @@ class ScanCommand : CliktCommand(
             }
         }
         val aggregatedScanResult = AggregatedScanResult(fileScanResults)
-        vulnerableFileRegex?.let {
+        evaluationRegex?.let {
             aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
         }
         outputScanResults(aggregatedScanResult, targetFiles)
