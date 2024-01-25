@@ -1,6 +1,6 @@
 package cli.scanner
 
-import sarif.MinimizedRun
+import data.MinimizedRun
 
 enum class Scanner{
     SEMGREP {

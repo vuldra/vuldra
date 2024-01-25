@@ -12,11 +12,12 @@ import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
 import config.readVuldraConfig
+import data.GptVulnerabilities
+import data.MinimizedRun
 import io.getEnvironmentVariable
-import sarif.MinimizedRun
+import kotlinx.serialization.encodeToString
 import unstrictJson
 import kotlin.time.Duration.Companion.minutes
-import kotlinx.serialization.encodeToString
 
 const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
 const val GPT4_1106_PREVIEW = "gpt-4-1106-preview"
@@ -201,7 +202,7 @@ class OpenaiApiClient(
             }
             openaiClient = OpenAI(
                 token = openaiApiKey!!,
-                timeout = Timeout(2.minutes),
+                timeout = Timeout(5.minutes),
                 logging = LoggingConfig(logLevel = if (verbose) LogLevel.All else LogLevel.Info),
             )
         }

@@ -1,4 +1,4 @@
-package sarif
+package data
 
 import io.github.detekt.sarif4k.Region
 import io.github.detekt.sarif4k.SarifSchema210

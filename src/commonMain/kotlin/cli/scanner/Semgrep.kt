@@ -1,11 +1,11 @@
 package cli.scanner
 
 import cli.CliConfig
+import data.MinimizedRun
+import data.MinimizedSarifResult
 import externalCommandOptions
 import io.executeExternalCommandAndCaptureOutput
 import io.github.detekt.sarif4k.SarifSchema210
-import sarif.MinimizedRun
-import sarif.MinimizedSarifResult
 import unstrictJson
 
 suspend fun scanFileWithSemgrep(targetFile: String): List<MinimizedRun> {
