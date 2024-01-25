@@ -16,6 +16,7 @@ import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.markdown.Markdown
 import com.github.ajalt.mordant.rendering.TextColors
+import com.github.ajalt.mordant.terminal.Terminal
 import currentTime
 import data.*
 import echoError
@@ -152,8 +153,13 @@ class ScanCommand : CliktCommand(
                 }
 
             if (scanners.contains(Scanner.OPENAI)) {
-                val targetFileContextTask = async { gatherContextOfTargetFile(targetFile, openaiApiClient) }
+                val targetFileContextTask = async {
+                    if (verbose) echo("${currentTime()} Started gathering context of $targetFile with OpenAI API")
+                    gatherContextOfTargetFile(targetFile, openaiApiClient)
+                }
                 val targetFileContext = targetFileContextTask.await()
+                if (verbose) echo("${currentTime()} Finished gathering context of $targetFile with OpenAI API")
+                if (verbose) echo("${currentTime()} Started scanning file $targetFile with OpenAI API")
                 FileScanResult(
                     targetFile,
                     openaiApiClient.determineSourceCodeVulnerabilities(
@@ -213,37 +219,47 @@ class ScanCommand : CliktCommand(
         if (verbose) echo(TextColors.cyan(jsonPretty.encodeToString(aggregatedScanResult)))
 
         val fileScanResults = aggregatedScanResult.fileScanResults
+        outputMarkdownHeadingAndSummary(fileScanResults, targetFiles)
+        aggregatedScanResult.evaluation?.let {
+            Terminal().println(it.generateTerminalTable())
+        }
+
+        var markdown = ""
+        fileScanResults.forEach {
+            if (it.isVulnerable) {
+                markdown += generateMarkdownForFileScanResult(it)
+            }
+        }
+        if (verbose) echo(markdown)
+        echo(Markdown(markdown))
+    }
+
+    private fun outputMarkdownHeadingAndSummary(
+        fileScanResults: List<FileScanResult>,
+        targetFiles: List<String>
+    ): String {
         val vulnerabilityCount = fileScanResults.sumOf {
             it.finalizedVulnerabilities.sumOf { run -> run.results?.size ?: 0 }
         }
         val scanningSummaryMessage =
             "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files."
 
-        var resultsInMarkdown = "# Vulnerabilities"
-        resultsInMarkdown += "\n\n".plus(
+        var markdown = "# Vulnerabilities"
+        markdown += "\n\n".plus(
             if (vulnerabilityCount == 0) TextColors.green(scanningSummaryMessage)
             else TextColors.yellow(scanningSummaryMessage)
         )
-        aggregatedScanResult.evaluation?.let {
-            resultsInMarkdown += it.generateMarkdown()
-        }
-
-        fileScanResults.forEach {
-            if (it.isVulnerable) {
-                resultsInMarkdown += generateMarkdownForVulnerabilities(it)
-            }
-        }
-        if (verbose) echo(resultsInMarkdown)
-        echo(Markdown(resultsInMarkdown))
+        echo(Markdown(markdown))
+        return markdown
     }
 
-    private fun generateMarkdownForVulnerabilities(vulnerabilities: FileScanResult): String {
-        var markdown = "\n\n## ${vulnerabilities.filepath}"
-        vulnerabilities.finalizedVulnerabilities.forEach { run ->
+    private fun generateMarkdownForFileScanResult(fileScanResult: FileScanResult): String {
+        var markdown = "\n\n## ${fileScanResult.filepath}"
+        fileScanResult.finalizedVulnerabilities.forEach { run ->
             run.results?.forEach { result ->
                 markdown += "\n\n${result.message}"
                 result.regions?.forEach {
-                    markdown += generateMarkdownForCodeRegion(vulnerabilities, it)
+                    markdown += generateMarkdownForCodeRegion(fileScanResult, it)
                 }
             }
         }
