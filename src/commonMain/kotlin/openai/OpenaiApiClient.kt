@@ -148,7 +148,7 @@ class OpenaiApiClient(
             }
             openaiClient = OpenAI(
                 token = openaiApiKey!!,
-                timeout = Timeout(2.minutes),
+                timeout = Timeout(5.minutes),
                 logging = LoggingConfig(logLevel = if (verbose) LogLevel.All else LogLevel.Info),
             )
         }
