@@ -44,10 +44,9 @@ class ScanCommand : CliktCommand(
         Examples:
     """.trimIndent()
         .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND Vulnerable.java")
-        .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --pattern *.java src/main/java")
+        .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --include *.java src/main/java")
         .plus("\n\n$VULDRA_COMMAND $SCAN_COMMAND --scanners openai"),
     name = SCAN_COMMAND,
-
     ) {
     val targets: List<String> by argument(completionCandidates = CompletionCandidates.Path).multiple()
 
@@ -118,15 +117,18 @@ class ScanCommand : CliktCommand(
             }
         }
         val scanEndTime = Clock.System.now()
-
-        val aggregatedScanResult = AggregatedScanResult(
-            Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
-            fileScanResults,
-        )
-        evaluationRegex?.let {
-            aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
+        try {
+            val aggregatedScanResult = AggregatedScanResult(
+                Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
+                fileScanResults,
+            )
+            evaluationRegex?.let {
+                aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
+            }
+            outputScanResults(aggregatedScanResult, targetFiles)
+        } catch (e: Exception) {
+            echoError("Failed to output scan results: ${e.message}")
         }
-        outputScanResults(aggregatedScanResult, targetFiles)
     }
 
     private fun identifyTargetFiles(): List<String> {

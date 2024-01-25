@@ -12,10 +12,10 @@ data class Evaluation(
     var falsePositives: Int,
     var trueNegatives: Int,
     var falseNegatives: Int,
-    var accuracy: Double,
-    var precision: Double,
-    var recall: Double,
-    var f1: Double,
+    var accuracy: Double?,
+    var precision: Double?,
+    var recall: Double?,
+    var f1: Double?,
 ) {
     constructor(fileScanResults: List<FileScanResult>, vulnerableFilesRegex: String) : this(
         0,
@@ -24,10 +24,10 @@ data class Evaluation(
         0,
         0,
         0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
+        null,
+        null,
+        null,
+        null
     ) {
         fileScanResults.forEach {
             val filename = it.filepath.toPath().name
@@ -40,12 +40,25 @@ data class Evaluation(
                 !isFileActuallyVulnerable && !it.isVulnerable -> trueNegatives++
             }
         }
-
+        val numberOfSamples = positives + negatives
+        if (numberOfSamples == 0) {
+            error("No results can be evaluated.")
+        }
         this.accuracy =
-            (truePositives + trueNegatives).toDouble() / (truePositives + trueNegatives + falsePositives + falseNegatives).toDouble()
-        this.precision = truePositives.toDouble() / (truePositives + falsePositives).toDouble()
-        this.recall = truePositives.toDouble() / (truePositives + falseNegatives).toDouble()
-        this.f1 = 2 * (precision * recall) / (precision + recall)
+            (truePositives + trueNegatives).toDouble() / numberOfSamples.toDouble()
+        if (truePositives + falsePositives != 0) {
+            this.precision = truePositives.toDouble() / (truePositives + falsePositives).toDouble()
+        }
+        if (positives != 0) {
+            this.recall = truePositives.toDouble() / (positives).toDouble()
+        }
+        precision?.let { precision ->
+            recall?.let { recall ->
+                if (precision + recall != 0.0) {
+                    this.f1 = 2 * (precision * recall) / (precision + recall)
+                }
+            }
+        }
     }
 
     fun generateTerminalTable() = table {
