@@ -51,7 +51,7 @@ data class Evaluation(
     fun generateTerminalTable() = table {
         header {
             style(bold = true)
-            row("Metric", "Value")
+            row("Evaluation Metric", "Value")
         }
         body {
             row {

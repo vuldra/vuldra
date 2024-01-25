@@ -230,7 +230,6 @@ class ScanCommand : CliktCommand(
                 markdown += generateMarkdownForFileScanResult(it)
             }
         }
-        if (verbose) echo(markdown)
         echo(Markdown(markdown))
     }
 
