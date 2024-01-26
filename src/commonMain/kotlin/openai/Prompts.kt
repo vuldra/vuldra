@@ -11,11 +11,11 @@ import kotlinx.serialization.json.Json
 
 private val exampleVulnerabilities1 = MinimizedRun(
     "GPT",
-    listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 6)), "SQL Injection"))
+    listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 5)), "SQL Injection due to lack of input validation"))
 )
 private val exampleVulnerabilities2 = MinimizedRun(
     "GPT",
-    listOf(MinimizedRunResult(listOf(MinimizedRegion(3, 5), MinimizedRegion(12, 13)), "Directory Traversal"))
+    listOf(MinimizedRunResult(listOf(MinimizedRegion(3, 5), MinimizedRegion(12, 19)), "Directory Traversal due to lack of input validation"))
 )
 private val exampleVulnerabilities3 = MinimizedRun(
     "GPT",
@@ -24,7 +24,7 @@ private val exampleVulnerabilities3 = MinimizedRun(
 
 val findVulnerabilitiesPrompt = """
     Find any vulnerabilities in the source code provided.
-    Describe each vulnerability found in less than 5 words.
+    Describe each vulnerability found in less than 20 words.
     Include relevant source code line regions for vulnerabilities found.
     The regions should include all the context needed to understand the vulnerability.
     Include maximum $MAX_CODE_REGIONS_PER_VULNERABILITY regions per vulnerability.
@@ -57,7 +57,7 @@ private val exampleReasoning3 = Json.encodeToString(
         listOf(
             MinimizedRun(
                 "GPT",
-                listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 6)), "SQL Injection"))
+                listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 6)), "SQL Injection due to lack of input validation"))
             )
         ),
     )
@@ -68,7 +68,7 @@ private val exampleReasoning4 = Json.encodeToString(
         listOf(
             MinimizedRun(
                 "Semgrep OSS",
-                listOf(MinimizedRunResult(listOf(MinimizedRegion(8, 8)), "Buffer Overflow"))
+                listOf(MinimizedRunResult(listOf(MinimizedRegion(8, 8)), "Buffer Overflow due to external data control"))
             )
         ),
     )
@@ -78,7 +78,8 @@ val reasonVulnerabilitiesPrompt = """
     Reason in less than 100 words.
     After reasoning, only list vulnerabilities that are convincing.
     Only include line numbers but no code snippets in the response.
-    Respond with an empty results array, if no vulnerabilities are very convincing.
+    The message describing each vulnerability should be less than 20 words.
+    Respond with an empty results array, if no vulnerabilities are convincing.
     Always respond in JSON format.
 
     Examples of JSON output you should produce:
