@@ -2,6 +2,7 @@ package io
 
 import kotlinx.serialization.json.Json
 import okio.FileSystem
+import okio.IOException
 import okio.Path.Companion.toPath
 
 expect val platform: Platform
@@ -13,11 +14,15 @@ fun readAllText(filePath: String): String =
         readUtf8()
     }
 
-fun readAllLines(filePath: String): List<String> {
+fun readAllLines(filePath: String, maxCharactersPerLine: Int): List<String> {
     val lines = mutableListOf<String>()
     fileSystem.read(filePath.toPath()) {
         while (true) {
-            lines.add(readUtf8LineStrict(512))
+            val line = readUtf8Line() ?: break
+            if (line.length > maxCharactersPerLine) {
+                throw IOException("Line character count ${line.length} exceeds limit of $maxCharactersPerLine")
+            }
+            lines.add(line)
         }
     }
     return lines

@@ -35,6 +35,7 @@ import openai.OpenaiApiClient
 const val SCAN_COMMAND = "scan"
 const val MAX_CODE_REGIONS_PER_VULNERABILITY = 3
 const val MAX_CODE_LINES_PER_REGION = 30
+const val MAX_CODE_CHARACTERS_PER_LINE = 512
 
 val scannerChoices = Scanner.entries.map { it.name.lowercase() }.toSet()
 
@@ -154,7 +155,11 @@ class ScanCommand : CliktCommand(
         openaiApiClient: OpenaiApiClient
     ): FileScanResult {
         return coroutineScope {
-            val sourceCodeLines = readAllLines(targetFile)
+            val sourceCodeLines = try {
+                readAllLines(targetFile, MAX_CODE_CHARACTERS_PER_LINE)
+            } catch (e: Exception) {
+                error("Failed to read lines: ${e.message}")
+            }
             val asyncScannerTasks = createAsyncSastScannerTasks(targetFile)
             checkAndAddAsyncOpenaiTask(asyncScannerTasks, targetFile, sourceCodeLines, openaiApiClient)
             val runs = executeAsyncScannerTasks(asyncScannerTasks, targetFile)

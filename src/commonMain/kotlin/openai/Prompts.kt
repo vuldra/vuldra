@@ -26,6 +26,7 @@ val findVulnerabilitiesPrompt = """
     Find any vulnerabilities in the source code provided.
     Describe each vulnerability found in less than 5 words.
     Include relevant source code line regions for vulnerabilities found.
+    The regions should include all the context needed to understand the vulnerability.
     Include maximum $MAX_CODE_REGIONS_PER_VULNERABILITY regions per vulnerability.
     Each region should have maximum $MAX_CODE_LINES_PER_REGION lines.
     If the code is not vulnerable, return an empty results array.
