@@ -82,13 +82,21 @@ kotlin {
                 implementation("com.squareup.okio:okio-fakefilesystem:_")
             }
         }
+        val concurrentMain by creating {
+            dependsOn(commonMain)
+            dependencies {
+                implementation("com.kgit2:kommand:2.0.1")
+            }
+        }
         getByName("jvmMain") {
             dependsOn(commonMain)
+            dependsOn(concurrentMain)
             dependencies {
                 implementation(Ktor.client.okHttp)
             }
         }
         getByName("jvmTest") {
+            dependsOn(commonTest)
             dependencies {
                 implementation(Testing.junit.jupiter.api)
                 implementation(Testing.junit.jupiter.engine)
@@ -97,6 +105,7 @@ kotlin {
         }
         val nativeMain by creating {
             dependsOn(commonMain)
+            dependsOn(concurrentMain)
         }
         val nativeTest by creating {
             dependsOn(commonTest)

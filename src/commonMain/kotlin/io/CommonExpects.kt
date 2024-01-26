@@ -1,9 +1,12 @@
 package io
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.IOException
 import okio.Path.Companion.toPath
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 expect val platform: Platform
 expect val compilationTarget: CompilationTarget
@@ -67,4 +70,7 @@ expect suspend fun findExecutable(executable: String): String
 
 // runBlocking doens't exist on JavaScript therefore in common multiplatform code
 // https://github.com/jmfayard/kotlin-cli-starter/issues/9
-expect fun runBlocking(block: suspend () -> Unit): Unit
+expect fun <T> runBlocking(
+    context: CoroutineContext = EmptyCoroutineContext,
+    block: suspend CoroutineScope.() -> T
+): T

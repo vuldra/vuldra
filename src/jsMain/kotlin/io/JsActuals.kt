@@ -2,11 +2,13 @@ package io
 
 import NodeJS.get
 import child_process.ExecOptions
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
 import okio.FileSystem
 import okio.NodeJsFileSystem
 import process
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -57,8 +59,10 @@ actual fun getEnvironmentVariable(name: String): String? =
 actual fun localUserConfigDirectory(): String =
     os.homedir()
 
-actual fun runBlocking(block: suspend () -> Unit): dynamic =
-    GlobalScope.promise { block() }
+actual fun <T> runBlocking(
+    context: CoroutineContext,
+    block: suspend CoroutineScope.() -> T
+): dynamic = GlobalScope.promise(context) { block() }
 
 actual val compilationTarget = CompilationTarget.NODEJS
 
