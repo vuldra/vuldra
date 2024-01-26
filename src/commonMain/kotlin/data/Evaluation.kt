@@ -42,7 +42,7 @@ data class Evaluation(
         }
         val numberOfSamples = positives + negatives
         if (numberOfSamples == 0) {
-            error("No results can be evaluated.")
+            error("A sample size of 0 cannot be evaluated.")
         }
         this.accuracy =
             (truePositives + trueNegatives).toDouble() / numberOfSamples.toDouble()

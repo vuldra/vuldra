@@ -123,18 +123,18 @@ class ScanCommand : CliktCommand(
             }
         }
         val scanEndTime = Clock.System.now()
+        val aggregatedScanResult = AggregatedScanResult(
+            Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
+            fileScanResults,
+        )
         try {
-            val aggregatedScanResult = AggregatedScanResult(
-                Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
-                fileScanResults,
-            )
             evaluationRegex?.let {
                 aggregatedScanResult.evaluation = Evaluation(fileScanResults, it)
             }
-            outputScanResults(aggregatedScanResult, targetFiles)
         } catch (e: Exception) {
-            echoError("Failed to output scan results: ${e.message}")
+            echoError("Failed to evaluate results: ${e.message}")
         }
+        outputScanResults(aggregatedScanResult, targetFiles)
     }
 
     private fun identifyTargetFiles(): List<String> {
@@ -213,17 +213,21 @@ class ScanCommand : CliktCommand(
     private suspend fun executeAsyncScannerTasks(
         tasks: MutableList<Deferred<List<MinimizedRun>>>,
         targetFile: String
-    ) = tasks.mapNotNull {
-        try {
-            val runResult = it.await()
-            if (runResult.isEmpty()) error("Scan of $targetFile did not produce any runs")
-            if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
-            runResult
-        } catch (e: Exception) {
-            echoError("Failed to scan file $targetFile: ${e.message}")
-            null
-        }
-    }.flatten()
+    ): List<MinimizedRun> = coroutineScope {
+        tasks.map { deferred ->
+            async {
+                try {
+                    val runResult = deferred.await()
+                    if (runResult.isEmpty()) error("Scan of $targetFile did not produce any runs")
+                    if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
+                    runResult
+                } catch (e: Exception) {
+                    echoError("Failed to scan file $targetFile: ${e.message}")
+                    emptyList()
+                }
+            }
+        }.awaitAll().flatten()
+    }
 
     private fun enrichRunsWithSourceCodeSnippets(
         runs: List<MinimizedRun>,
