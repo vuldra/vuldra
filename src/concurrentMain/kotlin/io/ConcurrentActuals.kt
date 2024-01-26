@@ -3,15 +3,12 @@ package io
 import com.kgit2.kommand.process.Command
 import com.kgit2.kommand.process.Stdio
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 actual suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>, // "find . -name .git"
     options: ExecuteCommandOptions
-) = withContext(Dispatchers.IO) {
+): String {
     // TODO refactor to use separate val for command name
     val child = Command(command.first())
         .args(command.drop(1))
@@ -23,7 +20,7 @@ actual suspend fun executeExternalCommandAndCaptureOutput(
     if (output.status != 0 && options.abortOnError) {
         throw Exception("Command `$command` failed with status ${output.status}: ${output.stderr}")
     }
-    when {
+    return when {
         output.status != 0 && options.redirectStderr -> when {
             output.stderr.isNullOrEmpty() -> ""
             options.trim -> output.stderr!!.trim()

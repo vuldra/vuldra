@@ -93,7 +93,7 @@ class ScanCommand : CliktCommand(
         }
         val openaiApiClient = OpenaiApiClient(verbose = verbose)
         val fileScanResults = mutableListOf<FileScanResult>()
-        runBlocking {
+        runBlocking(Dispatchers.Default) {
             if (scanners.contains(Scanner.OPENAI)) {
                 try {
                     openaiApiClient.listModels()
@@ -102,23 +102,21 @@ class ScanCommand : CliktCommand(
                     return@runBlocking
                 }
             }
-            coroutineScope {
-                targetFiles.map { targetFile ->
-                    async {
-                        if (verbose) echo("${currentTime()} Started scanning file $targetFile")
-                        try {
-                            scanTargetFile(targetFile, openaiApiClient).also {
-                                if (verbose) echo("${currentTime()} Finished scanning file $targetFile")
-                            }
-                        } catch (e: Exception) {
-                            echoError("Failed to scan file $targetFile: ${e.message}")
-                            null
+            targetFiles.map { targetFile ->
+                async {
+                    if (verbose) echo("${currentTime()} Started scanning file $targetFile")
+                    try {
+                        scanTargetFile(targetFile, openaiApiClient).also {
+                            if (verbose) echo("${currentTime()} Finished scanning file $targetFile")
                         }
+                    } catch (e: Exception) {
+                        echoError("Failed to scan file $targetFile: ${e.message}")
+                        null
                     }
-                }.awaitAll().forEach {
-                    it?.let {
-                        fileScanResults.add(it)
-                    }
+                }
+            }.awaitAll().forEach {
+                it?.let {
+                    fileScanResults.add(it)
                 }
             }
         }
@@ -162,7 +160,7 @@ class ScanCommand : CliktCommand(
             }
             val asyncScannerTasks = createAsyncSastScannerTasks(targetFile)
             checkAndAddAsyncOpenaiTask(asyncScannerTasks, targetFile, sourceCodeLines, openaiApiClient)
-            val runs = executeAsyncScannerTasks(asyncScannerTasks, targetFile)
+            val runs = asyncScannerTasks.awaitAll().flatten()
             enrichRunsWithSourceCodeSnippets(runs, sourceCodeLines)
 
             if (scanners.contains(Scanner.OPENAI)) {
@@ -189,8 +187,16 @@ class ScanCommand : CliktCommand(
     private fun CoroutineScope.createAsyncSastScannerTasks(targetFile: String) =
         scanners.filter { it != Scanner.OPENAI }.map { scanner ->
             async {
-                if (verbose) echo("${currentTime()} Started scanning file $targetFile with $scanner")
-                scanner.scanFile(targetFile)
+                try {
+                    if (verbose) echo("${currentTime()} Started scanning file $targetFile with $scanner")
+                    val runResult = scanner.scanFile(targetFile)
+                    if (runResult.isEmpty()) error("Scan of $targetFile did not produce any runs")
+                    if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
+                    runResult
+                } catch (e: Exception) {
+                    echoError("Failed to scan file $targetFile: ${e.message}")
+                    emptyList()
+                }
             }
         }.toMutableList()
 
@@ -203,30 +209,18 @@ class ScanCommand : CliktCommand(
         if (scanners.contains(Scanner.OPENAI)) {
             asyncRunTasks.add(
                 async {
-                    if (verbose) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
-                    listOf(openaiApiClient.findVulnerabilities(sourceCodeLines.joinToString("\n")))
+                    try {
+                        if (verbose) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
+                        val runResult = listOf(openaiApiClient.findVulnerabilities(sourceCodeLines.joinToString("\n")))
+                        if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
+                        runResult
+                    } catch (e: Exception) {
+                        echoError("Failed to scan file $targetFile with ${Scanner.OPENAI}: ${e.message}")
+                        emptyList()
+                    }
                 }
             )
         }
-    }
-
-    private suspend fun executeAsyncScannerTasks(
-        tasks: MutableList<Deferred<List<MinimizedRun>>>,
-        targetFile: String
-    ): List<MinimizedRun> = coroutineScope {
-        tasks.map { deferred ->
-            async {
-                try {
-                    val runResult = deferred.await()
-                    if (runResult.isEmpty()) error("Scan of $targetFile did not produce any runs")
-                    if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
-                    runResult
-                } catch (e: Exception) {
-                    echoError("Failed to scan file $targetFile: ${e.message}")
-                    emptyList()
-                }
-            }
-        }.awaitAll().flatten()
     }
 
     private fun enrichRunsWithSourceCodeSnippets(
@@ -326,7 +320,7 @@ class ScanCommand : CliktCommand(
         fileScanResult.vulnerabilities.forEach { run ->
             run.results?.forEach { result ->
                 markdown += "\n\n${result.message}"
-                result.regions?.forEach {region ->
+                result.regions?.forEach { region ->
                     region.snippet?.let {
                         markdown += "\n\n```\n${it}\n```"
                     }
