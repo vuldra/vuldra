@@ -122,8 +122,8 @@ class ScanCommand : CliktCommand(
         }
         val scanEndTime = Clock.System.now()
         val aggregatedScanResult = AggregatedScanResult(
-            Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
             fileScanResults,
+            Statistics(targetFiles, fileScanResults, scanStartTime, scanEndTime),
         )
         try {
             evaluationRegex?.let {
