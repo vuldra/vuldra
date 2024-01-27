@@ -3,14 +3,13 @@ package cli
 import cli.CliConfig.FIND
 import cli.CliConfig.VULDRA_COMMAND
 import cli.scanner.Scanner
-import com.aallam.openai.api.chat.ChatMessage
 import com.github.ajalt.clikt.completion.CompletionCandidates
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.switch
 import com.github.ajalt.clikt.parameters.options.varargValues
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
@@ -55,7 +54,15 @@ class ScanCommand : CliktCommand(
 ) {
     val targets: List<String> by argument(completionCandidates = CompletionCandidates.Path).multiple()
 
-    val verbose: Boolean by option("-v", "--verbose", help = "Verbose logging").flag(defaultForHelp = "disabled")
+    val verbosity: Verbosity by option(help = "Control the verbosity of output").switch(
+        "--quiet" to Verbosity.Quiet,
+        "-q" to Verbosity.Quiet,
+        "--verbose" to Verbosity.Verbose,
+        "-v" to Verbosity.Verbose,
+    ).default(Verbosity.Standard)
+    val verbose by lazy { verbosity == Verbosity.Verbose }
+    val quiet by lazy { verbosity == Verbosity.Quiet }
+
     val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
     val include: String? by option("--include", "-i", help = "Specify a shell pattern to match filenames")
     val scanners: List<Scanner> by option(
@@ -105,10 +112,10 @@ class ScanCommand : CliktCommand(
             }
             targetFiles.map { targetFile ->
                 async {
-                    if (verbose) echo("${currentTime()} Started scanning file $targetFile")
+                    if (!quiet) echo("${currentTime()} Started scanning file $targetFile")
                     try {
                         scanTargetFile(targetFile, openaiApiClient).also {
-                            if (verbose) echo("${currentTime()} Finished scanning file $targetFile")
+                            if (!quiet) echo("${currentTime()} Finished scanning file $targetFile")
                         }
                     } catch (e: Exception) {
                         echoError("Failed to scan file $targetFile: ${e.message}")
@@ -172,14 +179,14 @@ class ScanCommand : CliktCommand(
             val runs = scannerTasks.awaitAll().flatten()
 
             if (scanners.contains(Scanner.OPENAI)) {
-                if (verbose) echo("${currentTime()} Started reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
+                if (!quiet) echo("${currentTime()} Started reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
                 val fileScanResult = FileScanResult(
                     filepath = targetFile,
                     runs = runs,
                     sourceCodeContext = sourceCodeContext,
                     reasonedVulnerabilities = openaiApiClient.reasonVulnerabilities(sourceCode, sourceCodeContext, runs),
                 )
-                if (verbose) echo("${currentTime()} Finished reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
+                if (!quiet) echo("${currentTime()} Finished reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
                 enrichRunsWithSourceCodeSnippets(fileScanResult.vulnerabilities, sourceCodeLines)
                 fileScanResult
             } else {
@@ -198,10 +205,10 @@ class ScanCommand : CliktCommand(
         scanners.filter { it != Scanner.OPENAI }.map { scanner ->
             async {
                 try {
-                    if (verbose) echo("${currentTime()} Started scanning file $targetFile with $scanner")
+                    if (!quiet) echo("${currentTime()} Started scanning file $targetFile with $scanner")
                     val runResult = scanner.scanFile(targetFile)
                     if (runResult.isEmpty()) error("Scan of $targetFile did not produce any runs")
-                    if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
+                    if (!quiet) echo("${currentTime()} Finished scanning file $targetFile with ${runResult.first().tool}")
                     runResult
                 } catch (e: Exception) {
                     echoError("Failed to scan file $targetFile: ${e.message}")
@@ -216,9 +223,9 @@ class ScanCommand : CliktCommand(
         openaiApiClient: OpenaiApiClient
     ) = async {
         try {
-            if (verbose) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
+            if (!quiet) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
             val sourceCodeContext = openaiApiClient.gatherSourceCodeContext(sourceCode)
-            if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
+            if (!quiet) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
             sourceCodeContext
         } catch (e: Exception) {
             echoError("Failed to gather source code context of file $targetFile with ${Scanner.OPENAI}: ${e.message}")
@@ -335,8 +342,8 @@ class ScanCommand : CliktCommand(
     }
 }
 
-data class TargetFilContext(
-    val sourceCode: String,
-    val programmingLanguage: String,
-    val commonVulnerabilitiesMessage: ChatMessage
-)
+enum class Verbosity {
+    Quiet,
+    Standard,
+    Verbose,
+}

@@ -3,7 +3,10 @@ package openai
 import cli.CliConfig
 import cli.LOGIN_COMMAND
 import cli.OPENAI_COMMAND
-import com.aallam.openai.api.chat.*
+import com.aallam.openai.api.chat.ChatCompletionRequest
+import com.aallam.openai.api.chat.ChatMessage
+import com.aallam.openai.api.chat.ChatResponseFormat
+import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.core.FinishReason
 import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.logging.LogLevel
@@ -18,7 +21,6 @@ import data.ReasonedVulnerabilities
 import data.SourceCodeContext
 import io.getEnvironmentVariable
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import unstrictJson
 import kotlin.time.Duration.Companion.minutes
 
@@ -130,7 +132,7 @@ class OpenaiApiClient(
             openaiClient = OpenAI(
                 token = openaiApiKey!!,
                 timeout = Timeout(5.minutes),
-                logging = LoggingConfig(logLevel = if (verbose) LogLevel.All else LogLevel.Info),
+                logging = LoggingConfig(logLevel = if (verbose) LogLevel.Body else LogLevel.None),
             )
         }
     }
