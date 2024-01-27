@@ -80,52 +80,37 @@ class OpenaiApiClient(
 
     suspend fun reasonVulnerabilities(
         sourceCode: String,
-        sourceCodeContext: SourceCodeContext,
+        sourceCodeContext: SourceCodeContext?,
         runs: List<MinimizedRun>,
     ): ReasonedVulnerabilities {
         ensureOpenaiApiClientConfigured()
-        val sourceCodeContextText = unstrictJson.encodeToString(sourceCodeContext)
+        var userMessageContent = ""
+        sourceCodeContext?.let {
+            userMessageContent += "Source code context:\n${unstrictJson.encodeToString(it)}"
+        }
         val runsWithResults = runs.filter { it.results?.isNotEmpty() ?: false }
-        val runsMessage =
-            if (runsWithResults.isNotEmpty()) {
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = unstrictJson.encodeToString(runsWithResults)
-                )
-            } else null
-
-        var nonSourceCodeInputLength =
-            gatherSourceCodeContextPrompt.length + sourceCodeContextText.length + reasonVulnerabilitiesPrompt.length
-        runsMessage.let { nonSourceCodeInputLength += it?.content?.length ?: 0 }
-
+        if (runsWithResults.isNotEmpty()) {
+            userMessageContent += "\n\nAlleged discoveries of other tools:\n${unstrictJson.encodeToString(runsWithResults)}"
+        }
         val sourceCodeSnippet = cutExcessSourceCode(
             sourceCode,
-            nonSourceCodeInputLength,
+            userMessageContent.length + reasonVulnerabilitiesPrompt.length,
             CONTEXT_WINDOW_TOKENS_GPT4_1106_PREVIEW
         )
-        val messages = mutableListOf(
-            ChatMessage(
-                role = ChatRole.System,
-                content = gatherSourceCodeContextPrompt
-            ),
-            ChatMessage(
-                role = ChatRole.User,
-                content = "Source code:\n$sourceCodeSnippet"
-            ),
-            ChatMessage(
-                role = ChatRole.Assistant,
-                content = sourceCodeContextText
-            ),
-            ChatMessage(
-                role = ChatRole.System,
-                content = reasonVulnerabilitiesPrompt
-            ),
-        )
-        runsMessage?.let { messages.add(it) }
+        userMessageContent += "\n\nSource code:\n$sourceCodeSnippet"
 
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(GPT4_0125_PREVIEW),
-            messages = messages,
+            messages = listOf(
+                ChatMessage(
+                    role = ChatRole.System,
+                    content = reasonVulnerabilitiesPrompt
+                ),
+                ChatMessage(
+                    role = ChatRole.User,
+                    content = userMessageContent
+                ),
+            ),
             responseFormat = ChatResponseFormat.JsonObject,
         )
         return unstrictJson.decodeFromString(request(chatCompletionRequest))

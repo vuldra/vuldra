@@ -20,7 +20,7 @@ data class FileScanResult(
 ) {
     constructor(
         filepath: String,
-        sourceCodeContext: SourceCodeContext,
+        sourceCodeContext: SourceCodeContext?,
         runs: List<MinimizedRun>,
         reasonedVulnerabilities: ReasonedVulnerabilities
     ) : this(
@@ -37,7 +37,6 @@ data class FileScanResult(
 data class SourceCodeContext(
     val language: String,
     val purpose: String,
-    val vulnerabilities: List<String>,
 )
 
 @Serializable

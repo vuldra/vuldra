@@ -82,6 +82,7 @@ class ScanCommand : CliktCommand(
     )
 
     private val jsonPretty = Json { prettyPrint = true }
+    private val terminal = Terminal()
 
     override fun run() {
         val scanStartTime = Clock.System.now()
@@ -172,7 +173,6 @@ class ScanCommand : CliktCommand(
 
             if (scanners.contains(Scanner.OPENAI)) {
                 if (verbose) echo("${currentTime()} Started reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
-                if (sourceCodeContext == null) error("Failed to gather source code context")
                 val fileScanResult = FileScanResult(
                     filepath = targetFile,
                     runs = runs,
@@ -221,7 +221,7 @@ class ScanCommand : CliktCommand(
             if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
             sourceCodeContext
         } catch (e: Exception) {
-            echoError("Failed to scan file $targetFile with ${Scanner.OPENAI}: ${e.message}")
+            echoError("Failed to gather source code context of file $targetFile with ${Scanner.OPENAI}: ${e.message}")
             null
         }
     }
@@ -276,25 +276,22 @@ class ScanCommand : CliktCommand(
     ) {
         val aggregatedScanResultJson = jsonPretty.encodeToString(aggregatedScanResult)
         if (verbose) echo(TextColors.cyan(aggregatedScanResultJson))
-
-        val fileScanResults = aggregatedScanResult.fileScanResults
-        outputMarkdownHeadingAndSummary(fileScanResults, targetFiles)
-        aggregatedScanResult.evaluation?.let {
-            Terminal().println(it.generateTerminalTable())
-        }
-
-        var markdown = ""
-        fileScanResults.forEach {
-            if (it.isVulnerable) {
-                markdown += generateMarkdownForFileScanResult(it)
-            }
-        }
-        echo(Markdown(markdown))
         output?.let {
             try {
                 writeAllText(it, aggregatedScanResultJson)
             } catch (e: Exception) {
                 echoError("Failed to write scan results to $it: ${e.message}")
+            }
+        }
+
+        val fileScanResults = aggregatedScanResult.fileScanResults
+        outputMarkdownHeadingAndSummary(fileScanResults, targetFiles)
+        aggregatedScanResult.evaluation?.let {
+            terminal.println(it.generateTerminalTable())
+        }
+        fileScanResults.forEach {
+            if (it.isVulnerable) {
+                outputMarkdownForFileScanResult(it)
             }
         }
     }
@@ -314,23 +311,27 @@ class ScanCommand : CliktCommand(
             if (vulnerabilityCount == 0) TextColors.green(scanningSummaryMessage)
             else TextColors.yellow(scanningSummaryMessage)
         )
-        echo(Markdown(markdown))
+        terminal.println(Markdown(markdown))
         return markdown
     }
 
-    private fun generateMarkdownForFileScanResult(fileScanResult: FileScanResult): String {
+    private fun outputMarkdownForFileScanResult(fileScanResult: FileScanResult) {
         var markdown = "\n\n## ${fileScanResult.filepath}"
         fileScanResult.vulnerabilities.forEach { run ->
             run.results?.forEach { result ->
                 markdown += "\n\n${result.message}"
                 result.regions?.forEach { region ->
-                    region.snippet?.let {
-                        markdown += "\n\n```\n${it}\n```"
+                    if (!region.snippet.isNullOrBlank()) {
+                        markdown += "\n\n```\n${region.snippet}\n```"
                     }
                 }
             }
         }
-        return markdown
+        try {
+            terminal.println(Markdown(markdown))
+        } catch (e: Exception) {
+            echoError("Failed to output markdown for file ${fileScanResult.filepath}: ${e.message}")
+        }
     }
 }
 
