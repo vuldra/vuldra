@@ -1,64 +1,46 @@
 package openai
 
-import cli.MAX_CODE_LINES_PER_REGION
-import cli.MAX_CODE_REGIONS_PER_VULNERABILITY
-import data.MinimizedRegion
-import data.MinimizedRun
-import data.MinimizedRunResult
-import data.ReasonedVulnerabilities
+import data.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val exampleVulnerabilities1 = MinimizedRun(
-    "GPT",
-    listOf(MinimizedRunResult(listOf(MinimizedRegion(5, 5)), "SQL Injection due to lack of input validation"))
-)
-private val exampleVulnerabilities2 = MinimizedRun(
-    "GPT",
-    listOf(
-        MinimizedRunResult(
-            listOf(MinimizedRegion(3, 5), MinimizedRegion(12, 19)),
-            "Directory Traversal due to lack of input validation"
-        )
+val exampleSourceCodeContext1 = Json.encodeToString(
+    SourceCodeContext(
+        "Python",
+        "A simple web server",
+        listOf("SQL Injection", "Directory Traversal")
     )
 )
-private val exampleVulnerabilities3 = MinimizedRun(
-    "GPT",
-    listOf()
-)
 
-val findVulnerabilitiesPrompt = """
-    Find any vulnerabilities in the source code provided.
-    Describe each vulnerability found in less than 20 words.
-    Include relevant source code line regions for vulnerabilities found.
-    The regions should include all the context needed to understand the vulnerability.
-    Include maximum $MAX_CODE_REGIONS_PER_VULNERABILITY regions per vulnerability.
-    Each region should have maximum $MAX_CODE_LINES_PER_REGION lines.
-    If the code is not vulnerable, return an empty results array.
+val gatherSourceCodeContextPrompt = """
+    Step 1:
+    Identify the main programming language of the source code.
+    Step 2:
+    In less than 20 words, summarise the purpose of the source code.
+    Step 3:
+    In less than 30 words, list common vulnerabilities that are related to this purpose or to the constructs used in the source code.
+    
     Always respond in JSON format.
-
-    Examples of JSON output you should produce:
-    $exampleVulnerabilities1
-    $exampleVulnerabilities2
-    $exampleVulnerabilities3
+    
+    Example of JSON output:
+    $exampleSourceCodeContext1
 """.trimIndent()
-
 
 private val exampleReasoning1 = Json.encodeToString(
     ReasonedVulnerabilities(
-        "SAST tools and GPT found no vulnerabilities.",
+        "Other tools and GPT found no vulnerabilities.",
         listOf(),
     )
 )
 private val exampleReasoning2 = Json.encodeToString(
     ReasonedVulnerabilities(
-        "SAST tools found no vulnerabilities. Buffer Overflow vulnerability found by GPT is unconvincing.",
+        "Other tools found no vulnerabilities. Buffer Overflow vulnerability found by GPT is unconvincing.",
         listOf(),
     )
 )
 private val exampleReasoning3 = Json.encodeToString(
     ReasonedVulnerabilities(
-        "GPT found a convincing SQL Injection vulnerability that SAST tools missed.",
+        "GPT found a convincing SQL Injection vulnerability that other tools missed.",
         listOf(
             MinimizedRun(
                 "GPT",
@@ -74,7 +56,7 @@ private val exampleReasoning3 = Json.encodeToString(
 )
 private val exampleReasoning4 = Json.encodeToString(
     ReasonedVulnerabilities(
-        "SAST tool Semgrep OSS found a convincing Buffer Overflow vulnerability that GPT missed. SQL Injection vulnerability found by SAST tool Snyk is unconvincing.",
+        "Semgrep OSS found a convincing Buffer Overflow vulnerability that GPT missed. SQL Injection vulnerability found by Snyk is unconvincing.",
         listOf(
             MinimizedRun(
                 "Semgrep OSS",
@@ -89,15 +71,19 @@ private val exampleReasoning4 = Json.encodeToString(
     )
 )
 val reasonVulnerabilitiesPrompt = """
-    Reason about vulnerabilities which were previously found by you (GPT) and given vulnerabilities found by SAST tools.
-    Reason in less than 50 words.
-    After reasoning, only list convincing vulnerabilities that could be exploited, not just best practices.
-    Only include line numbers but no code snippets in the response.
+    Step 1:
+    Find vulnerabilities in the source code provided.
+    Step 2:
+    Reason about vulnerabilities which were found by any other tools. Mention which vulnerabilities are unconvincing, as they for example are not likely exploitable.
+    Reason which vulnerabilities you found that were missed by other tools. Reason in less than 50 words.
+    Step 3:
+    Based on the reasoning, only list convincing vulnerabilities that could be exploited.
     The message describing each vulnerability should be less than 20 words.
     Respond with an empty results array, if no vulnerabilities are convincing.
+    
     Always respond in JSON format.
 
-    Examples of JSON output you should produce:
+    Examples of JSON output:
     $exampleReasoning1
     $exampleReasoning2
     $exampleReasoning3

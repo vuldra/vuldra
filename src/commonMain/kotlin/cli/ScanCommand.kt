@@ -158,22 +158,32 @@ class ScanCommand : CliktCommand(
             } catch (e: Exception) {
                 error("Failed to read lines: ${e.message}")
             }
-            val asyncScannerTasks = createAsyncSastScannerTasks(targetFile)
-            checkAndAddAsyncOpenaiTask(asyncScannerTasks, targetFile, sourceCodeLines, openaiApiClient)
-            val runs = asyncScannerTasks.awaitAll().flatten()
-            enrichRunsWithSourceCodeSnippets(runs, sourceCodeLines)
+            val sourceCode = sourceCodeLines.joinToString("\n")
+
+            val scannerTasks = createScannerTasks(targetFile)
+            val sourceCodeContext =
+                if (scanners.contains(Scanner.OPENAI)) createSourceCodeContextTask(
+                    targetFile,
+                    sourceCode,
+                    openaiApiClient
+                ).await()
+                else null
+            val runs = scannerTasks.awaitAll().flatten()
 
             if (scanners.contains(Scanner.OPENAI)) {
                 if (verbose) echo("${currentTime()} Started reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
+                if (sourceCodeContext == null) error("Failed to gather source code context")
                 val fileScanResult = FileScanResult(
                     filepath = targetFile,
                     runs = runs,
-                    reasonedVulnerabilities = openaiApiClient.reasonVulnerabilities(runs),
+                    sourceCodeContext = sourceCodeContext,
+                    reasonedVulnerabilities = openaiApiClient.reasonVulnerabilities(sourceCode, sourceCodeContext, runs),
                 )
                 if (verbose) echo("${currentTime()} Finished reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
                 enrichRunsWithSourceCodeSnippets(fileScanResult.vulnerabilities, sourceCodeLines)
                 fileScanResult
             } else {
+                enrichRunsWithSourceCodeSnippets(runs, sourceCodeLines)
                 FileScanResult(
                     filepath = targetFile,
                     runs = runs,
@@ -184,7 +194,7 @@ class ScanCommand : CliktCommand(
         }
     }
 
-    private fun CoroutineScope.createAsyncSastScannerTasks(targetFile: String) =
+    private fun CoroutineScope.createScannerTasks(targetFile: String) =
         scanners.filter { it != Scanner.OPENAI }.map { scanner ->
             async {
                 try {
@@ -200,26 +210,19 @@ class ScanCommand : CliktCommand(
             }
         }.toMutableList()
 
-    private fun CoroutineScope.checkAndAddAsyncOpenaiTask(
-        asyncRunTasks: MutableList<Deferred<List<MinimizedRun>>>,
+    private fun CoroutineScope.createSourceCodeContextTask(
         targetFile: String,
-        sourceCodeLines: List<String>,
+        sourceCode: String,
         openaiApiClient: OpenaiApiClient
-    ) {
-        if (scanners.contains(Scanner.OPENAI)) {
-            asyncRunTasks.add(
-                async {
-                    try {
-                        if (verbose) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
-                        val runResult = listOf(openaiApiClient.findVulnerabilities(sourceCodeLines.joinToString("\n")))
-                        if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
-                        runResult
-                    } catch (e: Exception) {
-                        echoError("Failed to scan file $targetFile with ${Scanner.OPENAI}: ${e.message}")
-                        emptyList()
-                    }
-                }
-            )
+    ) = async {
+        try {
+            if (verbose) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
+            val sourceCodeContext = openaiApiClient.gatherSourceCodeContext(sourceCode)
+            if (verbose) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
+            sourceCodeContext
+        } catch (e: Exception) {
+            echoError("Failed to scan file $targetFile with ${Scanner.OPENAI}: ${e.message}")
+            null
         }
     }
 
