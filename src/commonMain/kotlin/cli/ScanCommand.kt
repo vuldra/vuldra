@@ -73,7 +73,8 @@ class ScanCommand : CliktCommand(
     )
         .enum<Scanner> { it.name.lowercase() }
         .varargValues()
-        .default(listOf(Scanner.SEMGREP, Scanner.OPENAI))
+        .default(listOf(Scanner.SEMGREP, Scanner.FLAWFINDER, Scanner.OPENAI))
+
     val evaluationRegex: String? by option(
         "--evaluation-regex",
         help = """

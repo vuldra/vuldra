@@ -15,4 +15,6 @@ object CliConfig {
     var FIND = "find"
     var GIT = "git"
     var SEMGREP = "semgrep"
+    var SNYK = "snyk"
+    var FLAWFINDER = "flawfinder"
 }
