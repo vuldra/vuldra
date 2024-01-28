@@ -18,7 +18,6 @@ import com.github.ajalt.mordant.rendering.TextColors
 import config.readVuldraConfig
 import data.MinimizedRun
 import data.ReasonedVulnerabilities
-import data.SourceCodeContext
 import io.getEnvironmentVariable
 import kotlinx.serialization.encodeToString
 import unstrictJson
@@ -38,58 +37,12 @@ class OpenaiApiClient(
 ) {
     private var openaiClient: OpenAI? = null
 
-    suspend fun gatherSourceCodeContext(sourceCode: String): SourceCodeContext {
-        ensureOpenaiApiClientConfigured()
-        val sourceCodeSnippet = cutExcessSourceCode(
-            sourceCode,
-            gatherSourceCodeContextPrompt.length,
-            CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106
-        )
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(GPT3_5_TURBO_1106),
-            messages = listOf(
-                ChatMessage(
-                    role = ChatRole.System,
-                    content = gatherSourceCodeContextPrompt
-                ),
-                ChatMessage(
-                    role = ChatRole.User,
-                    content = "Source code:\n$sourceCodeSnippet"
-                )
-            ),
-            responseFormat = ChatResponseFormat.JsonObject,
-        )
-        return unstrictJson.decodeFromString(request(chatCompletionRequest))
-    }
-
-    private fun cutExcessSourceCode(sourceCode: String, nonSourceCodeInputLength: Int, contextWindow: Int): String {
-        var sourceCodeSnippet = sourceCode
-        val maxInputTokens = contextWindow - MAX_OUTPUT_TOKENS
-        if ((sourceCode.length + nonSourceCodeInputLength) / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
-            sourceCodeSnippet = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
-            println(TextColors.yellow("Input source code exceeds context window of $contextWindow tokens and will be truncated."))
-        }
-        return sourceCodeSnippet
-    }
-
-    private suspend fun request(chatCompletionRequest: ChatCompletionRequest): String {
-        val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
-        if (chatChoice.finishReason == FinishReason.Length) {
-            error("Input tokens plus JSON output exceed context window of model ${chatCompletionRequest.model.id}!")
-        }
-        return chatChoice.message.content!!
-    }
-
     suspend fun reasonVulnerabilities(
         sourceCode: String,
-        sourceCodeContext: SourceCodeContext?,
         runs: List<MinimizedRun>,
     ): ReasonedVulnerabilities {
         ensureOpenaiApiClientConfigured()
         var userMessageContent = ""
-        sourceCodeContext?.let {
-            userMessageContent += "Source code context:\n${unstrictJson.encodeToString(it)}"
-        }
         val runsWithResults = runs.filter { it.results?.isNotEmpty() ?: false }
         if (runsWithResults.isNotEmpty()) {
             userMessageContent += "\n\nAlleged discoveries of other tools:\n${unstrictJson.encodeToString(runsWithResults)}"
@@ -114,8 +67,28 @@ class OpenaiApiClient(
                 ),
             ),
             responseFormat = ChatResponseFormat.JsonObject,
+            seed = 0,
+            temperature = 0.0,
         )
         return unstrictJson.decodeFromString(request(chatCompletionRequest))
+    }
+
+    private fun cutExcessSourceCode(sourceCode: String, nonSourceCodeInputLength: Int, contextWindow: Int): String {
+        var sourceCodeSnippet = sourceCode
+        val maxInputTokens = contextWindow - MAX_OUTPUT_TOKENS
+        if ((sourceCode.length + nonSourceCodeInputLength) / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
+            sourceCodeSnippet = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
+            println(TextColors.yellow("Input source code exceeds context window of $contextWindow tokens and will be truncated."))
+        }
+        return sourceCodeSnippet
+    }
+
+    private suspend fun request(chatCompletionRequest: ChatCompletionRequest): String {
+        val chatChoice = openaiClient!!.chatCompletion(chatCompletionRequest).choices.first()
+        if (chatChoice.finishReason == FinishReason.Length) {
+            error("Input tokens plus JSON output exceed context window of model ${chatCompletionRequest.model.id}!")
+        }
+        return chatChoice.message.content!!
     }
 
     suspend fun listModels(): List<Model> {

@@ -170,13 +170,6 @@ class ScanCommand : CliktCommand(
             val sourceCode = sourceCodeLines.joinToString("\n")
 
             val scannerTasks = createScannerTasks(targetFile)
-            val sourceCodeContext =
-                if (scanners.contains(Scanner.OPENAI)) createSourceCodeContextTask(
-                    targetFile,
-                    sourceCode,
-                    openaiApiClient
-                ).await()
-                else null
             val runs = scannerTasks.awaitAll().flatten()
 
             if (scanners.contains(Scanner.OPENAI)) {
@@ -184,8 +177,7 @@ class ScanCommand : CliktCommand(
                 val fileScanResult = FileScanResult(
                     filepath = targetFile,
                     runs = runs,
-                    sourceCodeContext = sourceCodeContext,
-                    reasonedVulnerabilities = openaiApiClient.reasonVulnerabilities(sourceCode, sourceCodeContext, runs),
+                    reasonedVulnerabilities = openaiApiClient.reasonVulnerabilities(sourceCode, runs),
                 )
                 if (!quiet) echo("${currentTime()} Finished reasoning vulnerabilities of file $targetFile with ${Scanner.OPENAI}")
                 enrichRunsWithSourceCodeSnippets(fileScanResult.vulnerabilities, sourceCodeLines)
@@ -217,22 +209,6 @@ class ScanCommand : CliktCommand(
                 }
             }
         }.toMutableList()
-
-    private fun CoroutineScope.createSourceCodeContextTask(
-        targetFile: String,
-        sourceCode: String,
-        openaiApiClient: OpenaiApiClient
-    ) = async {
-        try {
-            if (!quiet) echo("${currentTime()} Started scanning file $targetFile with ${Scanner.OPENAI}")
-            val sourceCodeContext = openaiApiClient.gatherSourceCodeContext(sourceCode)
-            if (!quiet) echo("${currentTime()} Finished scanning file $targetFile with ${Scanner.OPENAI}")
-            sourceCodeContext
-        } catch (e: Exception) {
-            echoError("Failed to gather source code context of file $targetFile with ${Scanner.OPENAI}: ${e.message}")
-            null
-        }
-    }
 
     private fun enrichRunsWithSourceCodeSnippets(
         runs: List<MinimizedRun>,

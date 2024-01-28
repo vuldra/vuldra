@@ -1,42 +1,32 @@
 package openai
 
-import data.*
+import data.MinimizedRegion
+import data.MinimizedRun
+import data.MinimizedRunResult
+import data.ReasonedVulnerabilities
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-val exampleSourceCodeContext1 = Json.encodeToString(
-    SourceCodeContext(
-        "Python",
-        "A simple web server handling database queries",
-    )
-)
-
-val gatherSourceCodeContextPrompt = """
-    Step 1:
-    Identify the main programming language of the source code.
-    Step 2:
-    In less than 20 words, summarise the purpose of the source code.
-    
-    Always respond in JSON format.
-    
-    Example of JSON output:
-    $exampleSourceCodeContext1
-""".trimIndent()
-
 private val exampleReasoning1 = Json.encodeToString(
     ReasonedVulnerabilities(
-        "The source code seems to be not vulnerable.",
+        "Python",
+        "A simple web server handling database queries",
+        "No vulnerabilities found.",
         listOf(),
     )
 )
 private val exampleReasoning2 = Json.encodeToString(
     ReasonedVulnerabilities(
+        "C",
+        "A service handling file uploads",
         "Buffer Overflow vulnerability found by Semgrep OSS is unconvincing.",
         listOf(),
     )
 )
 private val exampleReasoning3 = Json.encodeToString(
     ReasonedVulnerabilities(
+        "Java",
+        "A simple web server handling database queries",
         "The source code is vulnerable to an SQL Injection due to no parameterized queries.",
         listOf(
             MinimizedRun(
@@ -44,7 +34,7 @@ private val exampleReasoning3 = Json.encodeToString(
                 listOf(
                     MinimizedRunResult(
                         listOf(MinimizedRegion(5, 6)),
-                        "SQL Injection due to lack of input validation"
+                        "SQL Injection"
                     )
                 )
             )
@@ -53,6 +43,8 @@ private val exampleReasoning3 = Json.encodeToString(
 )
 private val exampleReasoning4 = Json.encodeToString(
     ReasonedVulnerabilities(
+        "C",
+        "A service handling file uploads",
         "Semgrep OSS found a convincing Buffer Overflow vulnerability due to external data control.",
         listOf(
             MinimizedRun(
@@ -60,7 +52,7 @@ private val exampleReasoning4 = Json.encodeToString(
                 listOf(
                     MinimizedRunResult(
                         listOf(MinimizedRegion(8, 8)),
-                        "Buffer Overflow due to external data control"
+                        "Buffer Overflow"
                     )
                 )
             )
@@ -69,8 +61,12 @@ private val exampleReasoning4 = Json.encodeToString(
 )
 val reasonVulnerabilitiesPrompt = """
     Step 1:
-    Find any vulnerabilities in the provided source code. Reason if they are exploitable. Reason in less than 50 words.
+    Identify the main programming language of the source code.
     Step 2:
+    In less than 20 words, summarise the purpose of the source code.
+    Step 3:
+    Find any vulnerabilities in the provided source code. Reason if they are exploitable. Reason in less than 50 words.
+    Step 4:
     Based on the reasoning, only list convincing vulnerabilities that could be exploited.
     The message describing each vulnerability should be less than 20 words.
     Respond with an empty results array, if no vulnerabilities are convincing.
