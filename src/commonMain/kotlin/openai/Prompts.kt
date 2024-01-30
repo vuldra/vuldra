@@ -1,13 +1,10 @@
 package openai
 
-import data.MinimizedRegion
-import data.MinimizedRun
-import data.MinimizedRunResult
-import data.ReasonedVulnerabilities
+import data.*
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import unstrictJson
 
-private val exampleReasoning1 = Json.encodeToString(
+private val exampleReasoning1 = unstrictJson.encodeToString(
     ReasonedVulnerabilities(
         "Python",
         "A simple web server handling database queries",
@@ -15,7 +12,7 @@ private val exampleReasoning1 = Json.encodeToString(
         listOf(),
     )
 )
-private val exampleReasoning2 = Json.encodeToString(
+private val exampleReasoning2 = unstrictJson.encodeToString(
     ReasonedVulnerabilities(
         "C",
         "A service handling file uploads",
@@ -23,7 +20,7 @@ private val exampleReasoning2 = Json.encodeToString(
         listOf(),
     )
 )
-private val exampleReasoning3 = Json.encodeToString(
+private val exampleReasoning3 = unstrictJson.encodeToString(
     ReasonedVulnerabilities(
         "Java",
         "A simple web server handling database queries",
@@ -33,15 +30,15 @@ private val exampleReasoning3 = Json.encodeToString(
                 "GPT",
                 listOf(
                     MinimizedRunResult(
-                        listOf(MinimizedRegion(5, 6)),
-                        "SQL Injection"
+                        locations = listOf(MinimizedLocation(region = MinimizedRegion(5, 6))),
+                        message = "SQL Injection"
                     )
                 )
             )
         ),
     )
 )
-private val exampleReasoning4 = Json.encodeToString(
+private val exampleReasoning4 = unstrictJson.encodeToString(
     ReasonedVulnerabilities(
         "C",
         "A service handling file uploads",
@@ -51,8 +48,8 @@ private val exampleReasoning4 = Json.encodeToString(
                 "Semgrep OSS",
                 listOf(
                     MinimizedRunResult(
-                        listOf(MinimizedRegion(8, 8)),
-                        "Buffer Overflow"
+                        locations = listOf(MinimizedLocation(region = MinimizedRegion(8, 8))),
+                        message = "Buffer Overflow"
                     )
                 )
             )

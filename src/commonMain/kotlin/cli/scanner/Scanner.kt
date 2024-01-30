@@ -1,39 +1,80 @@
 package cli.scanner
 
 import cli.CliConfig
+import commandOptionsAbortOnError
 import data.MinimizedRun
 import data.MinimizedSarifResult
-import externalCommandOptions
+import io.ExecuteCommandOptions
 import io.executeExternalCommandAndCaptureOutput
 import io.github.detekt.sarif4k.SarifSchema210
 import unstrictJson
 
 enum class Scanner {
     SEMGREP {
-        override suspend fun scanFile(targetFile: String) =
-            scanCommandProducingSarifFormat(semgrepScanCommand(targetFile))
+        override suspend fun scanTarget(target: String) = semgrepScan(target)
     },
     SNYK {
-        override suspend fun scanFile(targetFile: String) =
-            scanCommandProducingSarifFormat(snykScanCommand(targetFile))
+        override suspend fun scanTarget(target: String) = snykScan(target)
     },
     FLAWFINDER {
-        override suspend fun scanFile(targetFile: String) =
-            scanCommandProducingSarifFormat(flawfinderScanCommand(targetFile))
+        override suspend fun scanTarget(target: String) = flawfinderScan(target)
     },
     OPENAI {
         // TODO refactor
-        override suspend fun scanFile(targetFile: String) = error("Not supported")
+        override suspend fun scanTarget(target: String) = error("Not supported")
     };
 
-    abstract suspend fun scanFile(targetFile: String): List<MinimizedRun>
+    abstract suspend fun scanTarget(target: String): List<MinimizedRun>
 }
 
-suspend fun scanCommandProducingSarifFormat(command: List<String>): List<MinimizedRun> {
+private suspend fun semgrepScan(target: String) =
+    commandProducingSarifFormat(
+        listOf(
+            CliConfig.SEMGREP,
+            "scan",
+            "--config",
+            "auto",
+            "--quiet",
+//            "--severity=WARNING", //TODO option to set severity
+//            "--severity=ERROR",
+            "--sarif",
+            target
+        )
+    )
+
+private suspend fun snykScan(target: String) =
+    commandProducingSarifFormat(
+        listOf(CliConfig.SNYK, "code", "test", "--sarif", target),
+        ExecuteCommandOptions(
+            directory = ".",
+            abortOnError = true,
+            redirectStderr = true,
+            trim = true,
+            successExitCodes = setOf(0, 1)
+        ),
+    )
+
+private suspend fun flawfinderScan(target: String) =
+    commandProducingSarifFormat(
+        listOf(
+            CliConfig.FLAWFINDER,
+            "--dataonly",
+            "--quiet",
+            "--sarif",
+//            "--minlevel", //TODO option to set severity
+//            "3",
+            target
+        )
+    )
+
+private suspend fun commandProducingSarifFormat(
+    command: List<String>,
+    commandOptions: ExecuteCommandOptions = commandOptionsAbortOnError
+): List<MinimizedRun> {
     val semgrepSarifResponse =
-        executeExternalCommandAndCaptureOutput(command, externalCommandOptions)
+        executeExternalCommandAndCaptureOutput(command, commandOptions)
     if (semgrepSarifResponse.isBlank()) {
-        error("Command output is blank")
+        error("Command sarif JSON output was empty from command: $command")
     }
     val minimizedSarifResult = MinimizedSarifResult(
         unstrictJson.decodeFromString<SarifSchema210>(
@@ -42,12 +83,3 @@ suspend fun scanCommandProducingSarifFormat(command: List<String>): List<Minimiz
     )
     return minimizedSarifResult.runs
 }
-
-private fun semgrepScanCommand(targetFile: String): List<String> =
-    listOf(CliConfig.SEMGREP, "scan", "--config", "auto", "--quiet", "--severity=WARNING", "--severity=ERROR", "--sarif", targetFile)
-
-private fun snykScanCommand(targetFile: String): List<String> =
-    listOf(CliConfig.SNYK, "code", "test", "--sarif", targetFile)
-
-private fun flawfinderScanCommand(targetFile: String): List<String> =
-    listOf(CliConfig.FLAWFINDER, "--dataonly", "--quiet", "--sarif",  "--minlevel", "3", targetFile)

@@ -3,6 +3,7 @@ package data
 import io.github.detekt.sarif4k.Region
 import io.github.detekt.sarif4k.SarifSchema210
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class MinimizedSarifResult(
@@ -16,8 +17,8 @@ data class MinimizedSarifResult(
                 it.tool.driver.name,
                 it.results?.map { result ->
                     MinimizedRunResult(
-                        result.locations?.mapNotNull { location ->
-                            location.physicalLocation?.region?.let { region -> MinimizedRegion(region) }
+                        result.locations?.map { location ->
+                            MinimizedLocation(location)
                         },
                         result.message.text,
                         result.ruleID,
@@ -32,15 +33,26 @@ data class MinimizedSarifResult(
 @Serializable
 data class MinimizedRun(
     val tool: String,
-    val results: List<MinimizedRunResult>?,
+    var results: List<MinimizedRunResult>?,
 )
 
 @Serializable
 data class MinimizedRunResult(
-    var regions: List<MinimizedRegion>?,
+    var locations: List<MinimizedLocation>? = null,
     val message: String?,
     val ruleId: String? = null,
 )
+
+@Serializable
+data class MinimizedLocation(
+    var uri: String? = null,
+    val region: MinimizedRegion? = null
+) {
+    constructor(location: io.github.detekt.sarif4k.Location) : this(
+        uri = location.physicalLocation?.artifactLocation?.uri,
+        region = location.physicalLocation?.region?.let { MinimizedRegion(it) }
+    )
+}
 
 @Serializable
 data class MinimizedRegion(

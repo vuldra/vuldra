@@ -56,7 +56,8 @@ data class ExecuteCommandOptions(
     val directory: String,
     val abortOnError: Boolean,
     val redirectStderr: Boolean,
-    val trim: Boolean
+    val trim: Boolean,
+    val successExitCodes: Set<Int> = setOf(0),
 )
 
 expect suspend fun pwd(options: ExecuteCommandOptions): String

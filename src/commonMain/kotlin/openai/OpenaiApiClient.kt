@@ -42,11 +42,7 @@ class OpenaiApiClient(
         runs: List<MinimizedRun>,
     ): ReasonedVulnerabilities {
         ensureOpenaiApiClientConfigured()
-        var userMessageContent = ""
-        val runsWithResults = runs.filter { it.results?.isNotEmpty() ?: false }
-        if (runsWithResults.isNotEmpty()) {
-            userMessageContent += "\n\nAlleged discoveries of other tools:\n${unstrictJson.encodeToString(runsWithResults)}"
-        }
+        var userMessageContent = "\n\nAlleged discoveries of other tools:\n${unstrictJson.encodeToString(runs)}"
         val sourceCodeSnippet = cutExcessSourceCode(
             sourceCode,
             userMessageContent.length + reasonVulnerabilitiesPrompt.length,

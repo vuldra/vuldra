@@ -20,6 +20,7 @@ actual suspend fun findExecutable(executable: String): String =
     executable
 
 
+// TODO check whether implementation still matches concurrent logic
 actual suspend fun executeExternalCommandAndCaptureOutput(
     command: List<String>, // "find . -name .git"
     options: ExecuteCommandOptions

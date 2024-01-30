@@ -1,4 +1,5 @@
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.PrintMessage
 import com.github.ajalt.mordant.rendering.TextColors
 import io.ExecuteCommandOptions
 import kotlinx.datetime.Clock
@@ -14,10 +15,11 @@ val unstrictJson = Json {
     isLenient = true
 }
 
-val externalCommandOptions =
+val commandOptionsAbortOnError =
     ExecuteCommandOptions(directory = ".", abortOnError = true, redirectStderr = true, trim = true)
 
 fun CliktCommand.echoWarn(message: String) = echo(message = TextColors.yellow(message))
 fun CliktCommand.echoError(message: String) = echo(message = TextColors.red(message), err = true)
+fun throwExitError(message: String): Nothing = throw PrintMessage(message, 1, true)
 
 fun currentTime() = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).time.toString()
