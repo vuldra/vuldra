@@ -35,7 +35,7 @@ import throwExitError
 
 const val SCAN_COMMAND = "scan"
 const val MAX_CODE_LINES_PER_REGION = 10
-const val MAX_CODE_CHARACTERS_PER_LINE = 512
+const val MAX_CODE_CHARACTERS_PER_LINE = 2048
 
 val scannerChoices = Scanner.entries.map { it.name.lowercase() }.toSet()
 
@@ -288,7 +288,8 @@ class ScanCommand : CliktCommand(
             args += "-name"
             args += include!!
         } else {
-            args += listOf("!", "-name", "'.*'") // exclude dotfiles
+            // exclude dotfiles and dot directories
+            args += listOf("!", "-path", "*/.*")
         }
         return args.also { if (verbose) println("$ $it") }
     }

@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.minutes
 const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
 const val GPT4_0125_PREVIEW = "gpt-4-0125-preview"
 const val CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 = 16385
-const val CONTEXT_WINDOW_TOKENS_GPT4_1106_PREVIEW = 128000
+const val CONTEXT_WINDOW_GPT4_TURBO_PREVIEW = 128000
 const val MAX_OUTPUT_TOKENS = 4096
 const val APPROXIMATE_CHARACTERS_PER_TOKEN = 4
 const val OPENAI_API_KEY_ENV_NAME = "OPENAI_API_KEY"
@@ -46,7 +46,7 @@ class OpenaiApiClient(
         val sourceCodeSnippet = cutExcessSourceCode(
             sourceCode,
             userMessageContent.length + reasonVulnerabilitiesPrompt.length,
-            CONTEXT_WINDOW_TOKENS_GPT4_1106_PREVIEW
+            CONTEXT_WINDOW_GPT4_TURBO_PREVIEW
         )
         userMessageContent += "\n\nSource code:\n$sourceCodeSnippet"
 
