@@ -14,6 +14,7 @@ import com.aallam.openai.api.model.Model
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.LoggingConfig
 import com.aallam.openai.client.OpenAI
+import com.aallam.openai.client.RetryStrategy
 import com.github.ajalt.mordant.rendering.TextColors
 import config.readVuldraConfig
 import data.MinimizedRun
@@ -36,6 +37,17 @@ class OpenaiApiClient(
     private val verbose: Boolean = false,
 ) {
     private var openaiClient: OpenAI? = null
+
+    /**
+     *  Exponential backoff is calculated based on: base ^ retryCount * 1000ms + [0..1000ms]
+     *  So the first retry will be after ~8s and the second after additional ~64s.
+     *  This ensures that the second retry hits a new RPM (Request Per Minute) & TPM (Token Per Minute) window of the OpenAI API.
+     */
+    private val retryStrategyForRateLimiting = RetryStrategy(
+        maxRetries = 2,
+        base = 8.0,
+        maxDelay = 2.minutes,
+    )
 
     suspend fun reasonVulnerabilities(
         sourceCode: String,
@@ -102,6 +114,7 @@ class OpenaiApiClient(
                 token = openaiApiKey!!,
                 timeout = Timeout(5.minutes),
                 logging = LoggingConfig(logLevel = if (verbose) LogLevel.Body else LogLevel.None),
+                retry = retryStrategyForRateLimiting,
             )
         }
     }
