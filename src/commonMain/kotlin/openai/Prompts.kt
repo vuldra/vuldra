@@ -64,7 +64,7 @@ val reasonVulnerabilitiesPrompt = """
     Step 3:
     Find any vulnerabilities in the provided source code. Reason if they are exploitable. Reason in less than 50 words.
     Step 4:
-    Based on the reasoning, only list convincing vulnerabilities that could be exploited.
+    Based on the reasoning, list at most 2 convincing vulnerabilities that could be exploited.
     The message describing each vulnerability should be less than 20 words.
     Respond with an empty results array, if no vulnerabilities are convincing.
     

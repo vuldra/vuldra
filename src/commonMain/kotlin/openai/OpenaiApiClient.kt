@@ -24,11 +24,12 @@ import kotlinx.serialization.encodeToString
 import unstrictJson
 import kotlin.time.Duration.Companion.minutes
 
+// TODO make limits configurable or based on usage limits of user
 const val GPT3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
 const val GPT4_0125_PREVIEW = "gpt-4-0125-preview"
 const val CONTEXT_WINDOW_TOKENS_GPT3_5_TURBO_1106 = 16385
 const val CONTEXT_WINDOW_GPT4_TURBO_PREVIEW = 128000
-const val MAX_OUTPUT_TOKENS = 4096
+const val REASON_VULNERABILITIES_MAX_OUTPUT_TOKENS = 300
 const val APPROXIMATE_CHARACTERS_PER_TOKEN = 4
 const val OPENAI_API_KEY_ENV_NAME = "OPENAI_API_KEY"
 
@@ -42,6 +43,7 @@ class OpenaiApiClient(
      *  Exponential backoff is calculated based on: base ^ retryCount * 1000ms + [0..1000ms]
      *  So the first retry will be after ~8s and the second after additional ~64s.
      *  This ensures that the second retry hits a new RPM (Request Per Minute) & TPM (Token Per Minute) window of the OpenAI API.
+     *  https://platform.openai.com/docs/guides/rate-limits/how-do-these-rate-limits-work
      */
     private val retryStrategyForRateLimiting = RetryStrategy(
         maxRetries = 2,
@@ -58,7 +60,7 @@ class OpenaiApiClient(
         val sourceCodeSnippet = cutExcessSourceCode(
             sourceCode,
             userMessageContent.length + reasonVulnerabilitiesPrompt.length,
-            CONTEXT_WINDOW_GPT4_TURBO_PREVIEW
+            CONTEXT_WINDOW_GPT4_TURBO_PREVIEW - REASON_VULNERABILITIES_MAX_OUTPUT_TOKENS,
         )
         userMessageContent += "\n\nSource code:\n$sourceCodeSnippet"
 
@@ -75,18 +77,18 @@ class OpenaiApiClient(
                 ),
             ),
             responseFormat = ChatResponseFormat.JsonObject,
+            maxTokens = REASON_VULNERABILITIES_MAX_OUTPUT_TOKENS,
             seed = 0,
             temperature = 0.0,
         )
         return unstrictJson.decodeFromString(request(chatCompletionRequest))
     }
 
-    private fun cutExcessSourceCode(sourceCode: String, nonSourceCodeInputLength: Int, contextWindow: Int): String {
+    private fun cutExcessSourceCode(sourceCode: String, nonSourceCodeInputLength: Int, maxInputTokens: Int): String {
         var sourceCodeSnippet = sourceCode
-        val maxInputTokens = contextWindow - MAX_OUTPUT_TOKENS
         if ((sourceCode.length + nonSourceCodeInputLength) / APPROXIMATE_CHARACTERS_PER_TOKEN > maxInputTokens) {
             sourceCodeSnippet = sourceCode.substring(0, maxInputTokens * APPROXIMATE_CHARACTERS_PER_TOKEN)
-            println(TextColors.yellow("Input source code exceeds context window of $contextWindow tokens and will be truncated."))
+            println(TextColors.yellow("Input source code exceeds context window of $maxInputTokens tokens and will be truncated."))
         }
         return sourceCodeSnippet
     }
