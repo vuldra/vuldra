@@ -3,7 +3,6 @@ package data
 import io.github.detekt.sarif4k.Region
 import io.github.detekt.sarif4k.SarifSchema210
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 @Serializable
 data class MinimizedSarifResult(

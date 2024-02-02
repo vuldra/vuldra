@@ -7,20 +7,18 @@ import com.github.ajalt.clikt.completion.CompletionCandidates
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.switch
-import com.github.ajalt.clikt.parameters.options.varargValues
+import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.markdown.Markdown
 import com.github.ajalt.mordant.rendering.TextColors
+import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
+import commandOptionsAbortOnError
 import currentTime
 import data.*
 import echoError
 import echoWarn
-import commandOptionsAbortOnError
 import io.executeExternalCommandAndCaptureOutput
 import io.readAllLines
 import io.runBlocking
@@ -63,6 +61,10 @@ class ScanCommand : CliktCommand(
     ).default(Verbosity.Standard)
     private val verbose by lazy { verbosity == Verbosity.Verbose }
     private val quiet by lazy { verbosity == Verbosity.Quiet }
+    private val details: Boolean by option(
+        "--details",
+        help = "Show detailed results including code snippets after the scan"
+    ).flag()
 
     private val depth: Int? by option("--depth", "-d", help = "Specify the depth of recursive directory search").int()
     private val include: String? by option("--include", "-i", help = "Specify a shell pattern to match filenames")
@@ -310,12 +312,15 @@ class ScanCommand : CliktCommand(
 
         val fileScanResults = aggregatedScanResult.fileScanResults
         outputMarkdownHeadingAndSummary(fileScanResults, targetFiles)
+        outputTableListingVulnerabilities(fileScanResults)
         aggregatedScanResult.evaluation?.let {
             terminal.println(it.generateTerminalTable())
         }
-        fileScanResults.forEach {
-            if (it.isVulnerable) {
-                outputMarkdownForFileScanResult(it)
+        if (details) {
+            fileScanResults.forEach {
+                if (it.isVulnerable) {
+                    outputMarkdownForFileScanResult(it)
+                }
             }
         }
     }
@@ -328,9 +333,9 @@ class ScanCommand : CliktCommand(
             it.vulnerabilities.sumOf { run -> run.results?.size ?: 0 }
         }
         val scanningSummaryMessage =
-            "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files."
+            "Scanning completed! Found $vulnerabilityCount vulnerabilities in ${targetFiles.size} files.\n\n"
 
-        var markdown = "# Vulnerabilities"
+        var markdown = "# Results"
         markdown += "\n\n".plus(
             if (vulnerabilityCount == 0) TextColors.green(scanningSummaryMessage)
             else TextColors.yellow(scanningSummaryMessage)
@@ -355,6 +360,31 @@ class ScanCommand : CliktCommand(
             terminal.println(Markdown(markdown))
         } catch (e: Exception) {
             echoError("Failed to output markdown for file ${fileScanResult.filepath}: ${e.message}")
+        }
+    }
+
+    private fun outputTableListingVulnerabilities(fileScanResults: List<FileScanResult>) {
+        if (fileScanResults.any { it.isVulnerable }) {
+            val table = table {
+                header {
+                    style(bold = true)
+                    row("File", "Vulnerabilities", "Description")
+                }
+                body {
+                    fileScanResults.forEach { fileScanResult ->
+                        if (fileScanResult.isVulnerable) {
+                            row(
+                                fileScanResult.filepath,
+                                fileScanResult.vulnerabilities.size,
+                                fileScanResult.vulnerabilities.map {
+                                    it.results?.map { result -> result.message }?.joinToString("\n")
+                                }.joinToString("\n")
+                            )
+                        }
+                    }
+                }
+            }
+            terminal.println(table)
         }
     }
 }

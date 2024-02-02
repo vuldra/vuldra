@@ -1,6 +1,5 @@
 package io
 
-import com.kgit2.kommand.io.Output
 import com.kgit2.kommand.process.Command
 import com.kgit2.kommand.process.Stdio
 import kotlinx.coroutines.CoroutineScope
