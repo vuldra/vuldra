@@ -78,8 +78,8 @@ class OpenaiApiClient(
             ),
             responseFormat = ChatResponseFormat.JsonObject,
             maxTokens = REASON_VULNERABILITIES_MAX_OUTPUT_TOKENS,
-            seed = 0,
-            temperature = 0.0,
+            seed = 1,
+            temperature = 0.00000001,
         )
         return unstrictJson.decodeFromString(request(chatCompletionRequest))
     }
