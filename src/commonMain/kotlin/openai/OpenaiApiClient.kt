@@ -41,13 +41,13 @@ class OpenaiApiClient(
 
     /**
      *  Exponential backoff is calculated based on: base ^ retryCount * 1000ms + [0..1000ms]
-     *  So the first retry will be after ~8s and the second after additional ~64s.
+     *  The first and only retry will be after ~60s.
      *  This ensures that the second retry hits a new RPM (Request Per Minute) & TPM (Token Per Minute) window of the OpenAI API.
      *  https://platform.openai.com/docs/guides/rate-limits/how-do-these-rate-limits-work
      */
     private val retryStrategyForRateLimiting = RetryStrategy(
-        maxRetries = 2,
-        base = 8.0,
+        maxRetries = 1,
+        base = 60.0,
         maxDelay = 2.minutes,
     )
 
